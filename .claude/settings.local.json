@@ -5,7 +5,10 @@
       "WebFetch(domain:superwhisper.com)",
       "WebSearch",
       "Bash(git add:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(taskkill:*)",
+      "Read(C:\\Users\\6113618\\.windvoice\\logs/**)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": []

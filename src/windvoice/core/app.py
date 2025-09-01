@@ -2,6 +2,8 @@ import asyncio
 import sys
 from pathlib import Path
 from typing import Optional
+import tkinter as tk
+import customtkinter as ctk
 
 from .config import ConfigManager, WindVoiceConfig
 from .exceptions import WindVoiceError, ConfigurationError, AudioError, TranscriptionError
@@ -10,10 +12,22 @@ from ..services.transcription import TranscriptionService
 from ..services.injection import TextInjectionService
 from ..services.hotkeys import HotkeyManager
 from ..ui.menubar import SystemTrayService
+from ..ui.settings import SettingsWindow
+from ..ui.popup import show_smart_popup
+from ..utils.logging import get_logger, WindVoiceLogger, setup_logging
 
 
 class WindVoiceApp:
     def __init__(self):
+        # Setup comprehensive logging first
+        self.logger = setup_logging("DEBUG", True)
+        
+        WindVoiceLogger.log_audio_workflow_step(
+            self.logger,
+            "WindVoiceApp_Initializing",
+            {"timestamp": asyncio.get_event_loop().time() if asyncio._get_running_loop() else "no_loop"}
+        )
+        
         self.config_manager = ConfigManager()
         self.config: Optional[WindVoiceConfig] = None
         
@@ -24,13 +38,24 @@ class WindVoiceApp:
         self.hotkey_manager: Optional[HotkeyManager] = None
         self.system_tray: Optional[SystemTrayService] = None
         
+        # UI
+        self.root_window: Optional[tk.Tk] = None
+        self.settings_window: Optional[SettingsWindow] = None
+        self.current_popup = None
+        
         # State
         self.recording = False
         self.event_loop: Optional[asyncio.AbstractEventLoop] = None
         self.running = False
         
+        # Real-time feedback
+        self.level_monitor_task: Optional[asyncio.Task] = None
+        
     async def initialize(self):
         try:
+            # Initialize Tkinter root window for UI components
+            self._initialize_ui_root()
+            
             # Load configuration
             self.config = self.config_manager.load_config()
             
@@ -54,56 +79,115 @@ class WindVoiceApp:
         except Exception as e:
             raise WindVoiceError(f"Failed to initialize WindVoice: {e}")
     
+    def _initialize_ui_root(self):
+        """Initialize the root Tkinter window (hidden)"""
+        try:
+            # Create invisible root window for CustomTkinter
+            self.root_window = ctk.CTk()
+            self.root_window.withdraw()  # Hide the window
+            
+            # Configure CustomTkinter
+            ctk.set_appearance_mode("dark")
+            ctk.set_default_color_theme("blue")
+            
+        except Exception as e:
+            raise WindVoiceError(f"Failed to initialize UI root: {e}")
+    
     async def _initialize_services(self):
+        self.logger.info("Starting service initialization...")
+        
         # Audio recorder
+        self.logger.info("Initializing AudioRecorder...")
         self.audio_recorder = AudioRecorder(
             sample_rate=self.config.app.sample_rate,
             device=self.config.app.audio_device
         )
+        self.logger.info("AudioRecorder initialized successfully")
         
         # Transcription service
+        self.logger.info("Initializing TranscriptionService...")
         self.transcription_service = TranscriptionService(self.config.litellm)
+        self.logger.info("TranscriptionService initialized successfully")
         
         # Text injection service
+        self.logger.info("Initializing TextInjectionService...")
         self.text_injection_service = TextInjectionService()
+        self.logger.info("TextInjectionService initialized successfully")
         
         # Hotkey manager
+        self.logger.info("Initializing HotkeyManager...")
         self.hotkey_manager = HotkeyManager()
+        self.logger.info("Setting hotkey configuration...")
         self.hotkey_manager.set_hotkey(self.config.app.hotkey)
         self.hotkey_manager.set_hotkey_callback(self._on_hotkey_pressed)
+        self.logger.info("HotkeyManager initialized successfully")
         
         # System tray
+        self.logger.info("Initializing SystemTrayService...")
         self.system_tray = SystemTrayService(
             on_settings=self._show_settings,
             on_quit=self._quit_application
         )
+        self.logger.info("SystemTrayService initialized successfully")
+        
+        # Settings window
+        self.logger.info("Initializing SettingsWindow...")
+        self.settings_window = SettingsWindow(self.config_manager, self.audio_recorder)
+        self.logger.info("SettingsWindow initialized successfully")
+        
+        self.logger.info("All services initialized successfully")
     
     async def start(self):
         if self.running:
+            self.logger.info("App already running, skipping start")
             return
             
+        self.logger.info("Starting WindVoice application...")
         self.event_loop = asyncio.get_event_loop()
         self.running = True
         
         try:
             # Start services
+            self.logger.info("Starting HotkeyManager...")
             self.hotkey_manager.start(self.event_loop)
+            self.logger.info("HotkeyManager started successfully")
+            
+            self.logger.info("Starting SystemTrayService...")
             self.system_tray.start(self.event_loop)
+            self.logger.info("SystemTrayService started successfully")
             
             # Show startup notification
             if self.config.ui.show_tray_notifications:
+                self.logger.info("Showing startup notification...")
                 self.system_tray.show_notification(
                     "WindVoice Started",
                     f"Press {self.config.app.hotkey} to start recording"
                 )
             
             print(f"WindVoice is running. Press {self.config.app.hotkey} to record.")
+            self.logger.info("WindVoice startup completed - entering main loop")
             
-            # Keep the application running
+            # Keep the application running and process Tkinter events
+            loop_counter = 0
             while self.running:
+                # Log every 100 iterations (10 seconds) to show we're alive
+                if loop_counter % 100 == 0:
+                    self.logger.debug(f"Main loop iteration {loop_counter}")
+                
+                # Process Tkinter events if root window exists
+                if self.root_window:
+                    try:
+                        self.root_window.update()
+                    except tk.TclError:
+                        # Window was destroyed
+                        self.logger.warning("Root window was destroyed - stopping app")
+                        break
+                        
                 await asyncio.sleep(0.1)
+                loop_counter += 1
                 
         except Exception as e:
+            self.logger.error(f"Error starting WindVoice: {e}")
             print(f"Error starting WindVoice: {e}")
             await self.stop()
     
@@ -131,87 +215,268 @@ class WindVoiceApp:
         if self.audio_recorder:
             self.audio_recorder.cleanup_temp_files()
         
+        # Close UI root window
+        if self.root_window:
+            try:
+                self.root_window.quit()
+                self.root_window.destroy()
+            except:
+                pass
+        
         print("WindVoice stopped")
     
     async def _on_hotkey_pressed(self):
+        WindVoiceLogger.log_hotkey_event(
+            self.logger,
+            "HOTKEY_PRESSED",
+            {
+                "currently_recording": self.recording,
+                "app_running": self.running,
+                "audio_recorder_exists": self.audio_recorder is not None
+            }
+        )
+        
         try:
             if self.recording:
+                self.logger.info("STOP: Hotkey pressed: STOPPING recording")
                 await self._stop_recording()
             else:
+                self.logger.info("START: Hotkey pressed: STARTING recording")
                 await self._start_recording()
         except Exception as e:
+            self.logger.error(f"Hotkey handler failed: {e}")
+            WindVoiceLogger.log_hotkey_event(
+                self.logger,
+                "HOTKEY_ERROR",
+                {"error": str(e), "recording_state": self.recording}
+            )
             self._show_error_notification("Hotkey Error", str(e))
     
     async def _start_recording(self):
+        WindVoiceLogger.log_audio_workflow_step(
+            self.logger,
+            "_start_recording_CALLED",
+            {
+                "current_recording_state": self.recording,
+                "audio_recorder_ready": self.audio_recorder is not None,
+                "system_tray_ready": self.system_tray is not None
+            }
+        )
+        
         try:
             self.recording = True
             self.system_tray.set_recording_state(True)
             
-            if self.config.ui.show_tray_notifications:
-                self.system_tray.show_notification("WindVoice", "Recording started...")
+            # Start real-time level monitoring
+            self.level_monitor_task = asyncio.create_task(self._monitor_recording_levels())
             
+            if self.config.ui.show_tray_notifications:
+                self.system_tray.show_notification("WindVoice", "🎤 Recording started...")
+            
+            self.logger.info("Calling audio_recorder.start_recording()...")
             self.audio_recorder.start_recording()
             
+            WindVoiceLogger.log_audio_workflow_step(
+                self.logger,
+                "Recording_Start_SUCCESS",
+                {"state_updated": True, "level_monitor_started": True}
+            )
+            
         except AudioError as e:
+            self.logger.error(f"AudioError in _start_recording: {e}")
             self.recording = False
             self.system_tray.set_recording_state(False)
+            WindVoiceLogger.log_audio_workflow_step(
+                self.logger,
+                "Recording_Start_AUDIO_ERROR",
+                {"error": str(e)}
+            )
             self._show_error_notification("Recording Error", str(e))
         except Exception as e:
+            self.logger.error(f"General error in _start_recording: {e}")
             self.recording = False
             self.system_tray.set_recording_state(False)
+            WindVoiceLogger.log_audio_workflow_step(
+                self.logger,
+                "Recording_Start_GENERAL_ERROR",
+                {"error": str(e)}
+            )
             self._show_error_notification("Error", f"Failed to start recording: {e}")
     
-    async def _stop_recording(self):
+    async def _monitor_recording_levels(self):
+        """Monitor recording levels for visual feedback"""
         try:
+            while self.recording:
+                if self.audio_recorder and self.audio_recorder.is_recording():
+                    level = self.audio_recorder.get_current_level()
+                    self.system_tray.update_recording_level(level)
+                    
+                await asyncio.sleep(0.1)  # Update 10 times per second
+                
+        except Exception as e:
+            print(f"Level monitoring error: {e}")
+    
+    async def _stop_recording(self):
+        WindVoiceLogger.log_audio_workflow_step(
+            self.logger,
+            "_stop_recording_CALLED",
+            {
+                "current_recording_state": self.recording,
+                "level_monitor_active": self.level_monitor_task is not None,
+                "audio_recorder_ready": self.audio_recorder is not None
+            }
+        )
+        
+        try:
+            # Stop level monitoring
+            if self.level_monitor_task:
+                self.logger.debug("Cancelling level monitor task...")
+                self.level_monitor_task.cancel()
+                try:
+                    await self.level_monitor_task
+                except asyncio.CancelledError:
+                    pass
+                self.level_monitor_task = None
+            
             # Stop recording and get audio file
+            self.logger.info("Calling audio_recorder.stop_recording()...")
             audio_file_path = self.audio_recorder.stop_recording()
             self.recording = False
             self.system_tray.set_recording_state(False)
             
-            # Validate audio content
-            validation = self.audio_recorder.validate_audio_file(audio_file_path)
+            WindVoiceLogger.log_audio_workflow_step(
+                self.logger,
+                "Audio_File_Created",
+                {"file_path": audio_file_path, "file_exists": Path(audio_file_path).exists()}
+            )
             
-            if not validation.has_voice:
-                self._show_info_notification(
-                    "No voice detected",
-                    "Your recording appears to be silent. Please try again."
-                )
-                # Clean up the empty audio file
+            # Advanced audio validation with detailed feedback
+            self.logger.info("Starting audio validation...")
+            quality_metrics = self.audio_recorder.get_quality_metrics(audio_file_path)
+            title, message = self.audio_recorder.get_validation_message(audio_file_path)
+            
+            WindVoiceLogger.log_audio_workflow_step(
+                self.logger,
+                "Audio_Validation_Complete",
+                {
+                    "has_voice": quality_metrics.has_voice,
+                    "quality_score": quality_metrics.quality_score,
+                    "rms_level": quality_metrics.rms_level,
+                    "duration": quality_metrics.duration
+                }
+            )
+            
+            if not quality_metrics.has_voice:
+                self.logger.info(f"No voice detected - showing notification: {title}")
+                self._show_smart_notification(title, message, is_error=False)
+                # Clean up the invalid audio file
                 Path(audio_file_path).unlink(missing_ok=True)
+                WindVoiceLogger.log_audio_workflow_step(
+                    self.logger,
+                    "No_Voice_Detected_Cleanup",
+                    {"file_deleted": True}
+                )
                 return
             
-            # Show transcription in progress
+            # Show quality feedback if enabled
             if self.config.ui.show_tray_notifications:
-                self.system_tray.show_notification("WindVoice", "Transcribing audio...")
+                if quality_metrics.quality_score < 60:
+                    self.system_tray.show_notification(
+                        "Audio Quality Warning", 
+                        f"Quality: {quality_metrics.quality_score:.0f}/100. Transcription may be less accurate."
+                    )
+                else:
+                    self.system_tray.show_notification("WindVoice", "🤖 Transcribing audio...")
             
             # Transcribe audio
+            self.logger.info("Starting transcription...")
+            WindVoiceLogger.log_audio_workflow_step(
+                self.logger,
+                "Transcription_Started",
+                {"file_path": audio_file_path}
+            )
+            
             transcribed_text = await self.transcription_service.transcribe_audio(audio_file_path)
             
-            # Clean up audio file
-            Path(audio_file_path).unlink(missing_ok=True)
+            # Keep audio file for debugging if transcription fails
+            transcription_successful = bool(transcribed_text and transcribed_text.strip())
             
-            if not transcribed_text.strip():
-                self._show_info_notification(
+            WindVoiceLogger.log_audio_workflow_step(
+                self.logger,
+                "Transcription_Complete",
+                {
+                    "successful": transcription_successful,
+                    "text_length": len(transcribed_text) if transcribed_text else 0,
+                    "text_preview": transcribed_text[:50] + "..." if transcribed_text and len(transcribed_text) > 50 else transcribed_text
+                }
+            )
+            
+            if not transcription_successful:
+                self.logger.warning(f"Transcription failed - keeping audio file for debugging")
+                self._show_smart_notification(
                     "Transcription empty",
-                    "Audio was processed but no text was generated."
+                    f"Audio was processed but no text was generated. Audio saved for debugging."
+                )
+                # Don't delete the file so user can inspect it
+                print(f"Transcription failed - audio file kept at: {audio_file_path}")
+                WindVoiceLogger.log_audio_workflow_step(
+                    self.logger,
+                    "Transcription_Failed_Debug",
+                    {"debug_file_path": audio_file_path}
                 )
                 return
+            else:
+                # Clean up successful audio file
+                Path(audio_file_path).unlink(missing_ok=True)
+                WindVoiceLogger.log_audio_workflow_step(
+                    self.logger,
+                    "Transcription_Success_Cleanup",
+                    {"file_deleted": True}
+                )
             
             # Handle transcription result
             await self._handle_transcription_result(transcribed_text)
             
         except AudioError as e:
-            self.recording = False
-            self.system_tray.set_recording_state(False)
-            self._show_error_notification("Recording Error", str(e))
+            self.logger.error(f"AudioError in _stop_recording: {e}")
+            await self._cleanup_recording_state()
+            WindVoiceLogger.log_audio_workflow_step(
+                self.logger,
+                "Recording_Stop_AUDIO_ERROR",
+                {"error": str(e)}
+            )
+            self._show_smart_notification("Recording Error", str(e), is_error=True)
         except TranscriptionError as e:
-            self.recording = False
-            self.system_tray.set_recording_state(False)
-            self._show_error_notification("Transcription Error", str(e))
+            self.logger.error(f"TranscriptionError in _stop_recording: {e}")
+            await self._cleanup_recording_state()
+            WindVoiceLogger.log_audio_workflow_step(
+                self.logger,
+                "Recording_Stop_TRANSCRIPTION_ERROR",
+                {"error": str(e)}
+            )
+            self._show_smart_notification("Transcription Error", str(e), is_error=True)
         except Exception as e:
-            self.recording = False
-            self.system_tray.set_recording_state(False)
-            self._show_error_notification("Error", f"Failed to process recording: {e}")
+            self.logger.error(f"General error in _stop_recording: {e}")
+            await self._cleanup_recording_state()
+            WindVoiceLogger.log_audio_workflow_step(
+                self.logger,
+                "Recording_Stop_GENERAL_ERROR",
+                {"error": str(e)}
+            )
+            self._show_smart_notification("Error", f"Failed to process recording: {e}", is_error=True)
+    
+    async def _cleanup_recording_state(self):
+        """Clean up recording state after error"""
+        if self.level_monitor_task:
+            self.level_monitor_task.cancel()
+            try:
+                await self.level_monitor_task
+            except asyncio.CancelledError:
+                pass
+            self.level_monitor_task = None
+            
+        self.recording = False
+        self.system_tray.set_recording_state(False)
     
     async def _handle_transcription_result(self, text: str):
         try:
@@ -222,28 +487,59 @@ class WindVoiceApp:
                 if self.config.ui.show_tray_notifications:
                     self.system_tray.show_notification("WindVoice", "✅ Text injected successfully")
             else:
-                # Fallback: show popup (not implemented in MVP)
-                self._show_info_notification("Transcription Result", f"Text: {text}")
+                # Fallback: show smart popup with enhanced UI
+                self.current_popup = show_smart_popup(
+                    text, 
+                    context="injection_failed",
+                    timeout=15
+                )
                 
         except Exception as e:
-            self._show_error_notification("Text Injection Error", str(e))
-            # Fallback: show the text in notification
-            self._show_info_notification("Transcription Result", f"Text: {text}")
+            self._show_smart_notification("Text Injection Error", str(e), is_error=True)
+            # Fallback: show the text in popup
+            self.current_popup = show_smart_popup(
+                text, 
+                context="injection_error",
+                timeout=20
+            )
+    
+    def _show_smart_notification(self, title: str, message: str, is_error: bool = False):
+        """Show intelligent notifications with better formatting"""
+        if self.system_tray:
+            # Add emoji indicators
+            if is_error:
+                display_title = f"❌ {title}"
+            elif "success" in title.lower() or "✅" in title:
+                display_title = f"✅ {title}"
+            elif "warning" in title.lower():
+                display_title = f"⚠️ {title}"
+            else:
+                display_title = f"ℹ️ {title}"
+                
+            self.system_tray.show_notification(display_title, message)
+            
+        # Also log with appropriate level
+        log_level = "ERROR" if is_error else "INFO"
+        print(f"{log_level} - {title}: {message}")
     
     def _show_error_notification(self, title: str, message: str):
-        if self.system_tray:
-            self.system_tray.show_notification(title, message)
-        print(f"ERROR - {title}: {message}")
+        """Legacy method - redirects to smart notifications"""
+        self._show_smart_notification(title, message, is_error=True)
     
     def _show_info_notification(self, title: str, message: str):
-        if self.system_tray:
-            self.system_tray.show_notification(title, message)
-        print(f"INFO - {title}: {message}")
+        """Legacy method - redirects to smart notifications"""
+        self._show_smart_notification(title, message, is_error=False)
     
     async def _show_settings(self):
-        # TODO: Implement settings dialog in Sprint 2
-        self._show_info_notification("Settings", "Settings dialog not implemented yet")
-        print("Settings requested - not implemented in MVP")
+        """Show the settings window"""
+        try:
+            if self.settings_window:
+                self.settings_window.show()
+            else:
+                self._show_error_notification("Settings Error", "Settings window not available")
+        except Exception as e:
+            self._show_error_notification("Settings Error", f"Failed to open settings: {e}")
+            print(f"Settings error: {e}")
     
     async def _quit_application(self):
         print("Quit requested")

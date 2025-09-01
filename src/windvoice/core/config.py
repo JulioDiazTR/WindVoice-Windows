@@ -40,6 +40,11 @@ class ConfigManager:
         self.config_dir = Path.home() / ".windvoice"
         self.config_file = self.config_dir / "config.toml"
         self._config: Optional[WindVoiceConfig] = None
+    
+    @property
+    def config_file_path(self) -> Path:
+        """Get the config file path (for compatibility)"""
+        return self.config_file
 
     def ensure_config_dir(self):
         self.config_dir.mkdir(exist_ok=True)

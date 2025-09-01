@@ -1,13 +1,18 @@
-# Core Dependencies - WindVoice-Windows Sprint 1 MVP
+# Core Dependencies - WindVoice-Windows Sprint 2
 # Audio Processing
 sounddevice>=0.4.7
 soundfile>=0.12.1
 numpy>=1.24.0
+scipy>=1.11.0
+
+# Modern UI Framework
+customtkinter>=5.2.2
 
 # System Integration
 pynput>=1.7.7
 pystray>=0.19.4
 pyperclip>=1.8.2
+pyautogui>=0.9.54
 
 # HTTP Client for LiteLLM
 aiohttp>=3.9.1
@@ -20,3 +25,4 @@ Pillow>=10.0.0
 
 # Windows-specific dependencies (will be handled by pip on Windows)
 # pywin32 - Automatically installed on Windows if needed
+# win32gui - For cursor positioning in popups
