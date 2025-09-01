@@ -8,7 +8,8 @@
       "Bash(python:*)",
       "Bash(taskkill:*)",
       "Read(C:\\Users\\6113618\\.windvoice\\logs/**)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(del test_status_dialog.py test_robust_simple.py)"
     ],
     "deny": [],
     "ask": []

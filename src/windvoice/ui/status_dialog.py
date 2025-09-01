@@ -97,11 +97,11 @@ class StatusDialog:
             self.window.title("WindVoice Status")
             
             # Make window modern and transparent
-            window_size = 140
+            window_size = 120
             self.window.geometry(f"{window_size}x{window_size}")
             self.window.resizable(False, False)
             self.window.attributes("-topmost", True)
-            self.window.attributes("-alpha", 0.95)
+            self.window.attributes("-alpha", 0.85)  # More transparent
             self.window.overrideredirect(True)  # Remove window decorations
             print("DEBUG: Window configuration completed")
             
@@ -122,28 +122,28 @@ class StatusDialog:
         except:
             pass  # Fallback gracefully if not available
         
-        # Create main container frame with modern styling
+        # Create main container frame with glassmorphism styling
         self.main_frame = ctk.CTkFrame(
             self.window,
             width=window_size,
             height=window_size,
-            corner_radius=25,  # Rounded corners
-            fg_color=("gray10", "gray10"),  # Dark modern background
-            border_width=2,
-            border_color=("gray30", "gray60")
+            corner_radius=30,  # More rounded for modern look
+            fg_color=("rgba(20, 20, 20, 0.7)", "rgba(20, 20, 20, 0.7)"),  # Glassmorphism effect
+            border_width=1,
+            border_color=("rgba(255, 255, 255, 0.1)", "rgba(255, 255, 255, 0.1)")
         )
-        self.main_frame.pack(fill="both", expand=True, padx=3, pady=3)
+        self.main_frame.pack(fill="both", expand=True, padx=2, pady=2)
         
-        # Create canvas for animations with modern styling
+        # Create canvas for animations with transparent styling
         self.canvas = Canvas(
             self.main_frame, 
-            width=window_size-10, 
-            height=window_size-10,
-            bg='#1a1a1a',  # Dark background
+            width=window_size-8, 
+            height=window_size-8,
+            bg='#141414',  # Slightly lighter dark background
             highlightthickness=0,
             relief='flat'
         )
-        self.canvas.pack(fill="both", expand=True, padx=5, pady=5)
+        self.canvas.pack(fill="both", expand=True, padx=4, pady=4)
         
         # Enhanced dragging - bind to both canvas and frame
         self.canvas.bind("<Button-1>", self._on_drag_start)
@@ -170,28 +170,109 @@ class StatusDialog:
         self.drag_start_y = 0
         
     def _position_window(self):
-        """Position window in bottom-right corner of primary screen"""
+        """Position window near cursor on active monitor with smart placement"""
         try:
             self.window.update_idletasks()
             
-            # Get primary monitor dimensions
-            screen_width = self.window.winfo_screenwidth()
-            screen_height = self.window.winfo_screenheight()
+            # Get cursor position and active monitor
+            cursor_x, cursor_y = self._get_cursor_position()
+            monitor_info = self._get_active_monitor(cursor_x, cursor_y)
             
-            # Position in bottom-right corner with margin
-            margin = 60
-            x = screen_width - 140 - margin
-            y = screen_height - 140 - margin
+            # Window size
+            window_size = 120
+            margin = 50  # Distance from cursor
             
-            # Force window to appear on screen
-            self.window.geometry(f"140x140+{x}+{y}")
-            self.window.deiconify()  # Make sure window is not minimized
-            self.window.lift()       # Bring to front
+            # Smart positioning near cursor but not covering it
+            # Try positioning to bottom-right of cursor first
+            x = cursor_x + margin
+            y = cursor_y + margin
+            
+            # Ensure window stays within monitor bounds
+            if x + window_size > monitor_info['right']:
+                x = cursor_x - window_size - margin  # Move to left of cursor
+            if y + window_size > monitor_info['bottom']:
+                y = cursor_y - window_size - margin  # Move above cursor
+                
+            # Final bounds check
+            x = max(monitor_info['left'], min(x, monitor_info['right'] - window_size))
+            y = max(monitor_info['top'], min(y, monitor_info['bottom'] - window_size))
+            
+            # Apply position
+            self.window.geometry(f"{window_size}x{window_size}+{x}+{y}")
+            self.window.deiconify()
+            self.window.lift()
             
         except Exception as e:
             print(f"Could not position status dialog: {e}")
-            # Fallback to center of screen
-            self.window.geometry(f"140x140+100+100")
+            # Fallback to simple cursor-based positioning
+            try:
+                cursor_x, cursor_y = self._get_cursor_position()
+                fallback_x = max(50, cursor_x - 60)
+                fallback_y = max(50, cursor_y + 50)
+                self.window.geometry(f"120x120+{fallback_x}+{fallback_y}")
+            except:
+                self.window.geometry(f"120x120+100+100")
+    
+    def _get_cursor_position(self):
+        """Get current cursor position"""
+        try:
+            import win32gui
+            return win32gui.GetCursorPos()
+        except ImportError:
+            # Fallback using tkinter
+            try:
+                self.window.update_idletasks()
+                return self.window.winfo_pointerx(), self.window.winfo_pointery()
+            except:
+                return 200, 200  # Default position
+    
+    def _get_active_monitor(self, cursor_x, cursor_y):
+        """Get information about the monitor containing the cursor"""
+        try:
+            import win32api
+            import win32con
+            
+            # Get all monitors
+            monitors = win32api.EnumDisplayMonitors()
+            
+            # Find monitor containing cursor
+            for monitor_handle, device_context, monitor_rect in monitors:
+                left, top, right, bottom = monitor_rect
+                if left <= cursor_x < right and top <= cursor_y < bottom:
+                    return {
+                        'left': left,
+                        'top': top,
+                        'right': right,
+                        'bottom': bottom,
+                        'width': right - left,
+                        'height': bottom - top
+                    }
+            
+            # Fallback to primary monitor if cursor monitor not found
+            return self._get_primary_monitor()
+            
+        except ImportError:
+            return self._get_primary_monitor()
+    
+    def _get_primary_monitor(self):
+        """Get primary monitor information as fallback"""
+        try:
+            self.window.update_idletasks()
+            width = self.window.winfo_screenwidth()
+            height = self.window.winfo_screenheight()
+            return {
+                'left': 0,
+                'top': 0,
+                'right': width,
+                'bottom': height,
+                'width': width,
+                'height': height
+            }
+        except:
+            return {
+                'left': 0, 'top': 0, 'right': 1920, 'bottom': 1080,
+                'width': 1920, 'height': 1080
+            }
     
     def _add_drop_shadow_effect(self):
         """Add drop shadow effect to window"""
@@ -247,7 +328,7 @@ class StatusDialog:
         """Cycle through transparency levels"""
         if self.window:
             current_alpha = self.window.attributes("-alpha")
-            transparencies = [0.7, 0.8, 0.9, 0.95, 1.0]
+            transparencies = [0.6, 0.75, 0.85, 0.95, 1.0]  # More transparent options
             
             # Find next transparency level
             try:
@@ -270,7 +351,7 @@ class StatusDialog:
         """Handle mouse hover leave"""
         if self.window and not self.dragging:
             # Restore original opacity
-            self.window.attributes("-alpha", 0.95)
+            self.window.attributes("-alpha", 0.85)
     
     def _start_animation(self):
         """Start the animation loop using Tkinter's after method"""
@@ -858,7 +939,7 @@ class StatusDialog:
         
         # Restore transparency
         if self.window:
-            self.window.attributes("-alpha", 0.95)
+            self.window.attributes("-alpha", 0.85)
         
         # Optional: Snap to screen edges if close enough
         self._snap_to_edges()
