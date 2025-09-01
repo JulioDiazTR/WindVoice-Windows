@@ -1,15 +1,15 @@
-# PRD - WindVoice Python: Cross-Platform Voice Dictation App
+# PRD - WindVoice-Windows: Native Windows Voice Dictation App
 
 ## 📋 Product Overview
 
-**Product Name:** WindVoice Python  
+**Product Name:** WindVoice-Windows  
 **Version:** 2.0.0  
-**Platform:** Windows & macOS  
+**Platform:** Windows 10+  
 **Tech Stack:** 100% Python (CustomTkinter + Modern Audio Stack)  
 **Target Release:** Q4 2025  
 
 ### Vision Statement
-Create a **simple, fast, and reliable** cross-platform voice dictation application using 100% Python. Focus on core functionality that works consistently with minimal complexity.
+Create a **simple, fast, and reliable** Windows voice dictation application using 100% Python. Focus on system tray presence with global hotkey activation that works seamlessly across any Windows application.
 
 ### Design Principles
 - 🎯 **Simple**: Easy to use, understand, and maintain
@@ -19,14 +19,14 @@ Create a **simple, fast, and reliable** cross-platform voice dictation applicati
 - 🛡️ **Reliable**: Works consistently, shows errors clearly when they occur
 
 ### Key Features
-- ⚡ **Instant hotkey activation** from any application
-- 🎤 **High-quality audio recording** (44.1kHz WAV for Whisper)
+- ⚡ **Instant hotkey activation** from any application (Ctrl+Shift+Space)
+- 🎤 **High-quality audio recording** (44.1kHz WAV optimized for Whisper)
 - 🤖 **AI transcription** using Thomson Reuters LiteLLM proxy with Whisper-1
-- 💉 **Smart text injection** - auto-inject or popup based on context
-- 🖥️ **Clean UI** with CustomTkinter (no Electron)
-- 🖲️ **Background operation** via system tray
-- ⚙️ **Configurable settings** - API keys, hotkeys, preferences
-- 📝 **Clear error handling** - show users what went wrong, not technical details
+- 💉 **Smart text injection** - auto-inject or minimal popup based on context
+- 🖲️ **System tray presence** - lives quietly in Windows system tray
+- ⚙️ **Minimal configuration** - API keys and essential preferences only
+- 🔒 **Privacy-focused** - secure credential handling
+- 📝 **Clear error handling** - user-friendly messages without technical details
 
 ---
 
@@ -60,7 +60,7 @@ Create a **simple, fast, and reliable** cross-platform voice dictation applicati
 │  │                 Core Layer                              │ │
 │  │  • Application Controller                               │ │
 │  │  • Configuration Management                             │ │
-│  │  • Cross-Platform Utilities                            │ │
+│  │  • Windows-Specific Utilities                        │ │
 │  │  • File System Management                              │ │
 │  └─────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
@@ -99,52 +99,41 @@ Create a **simple, fast, and reliable** cross-platform voice dictation applicati
 - **Error Handling:** Simple, clear error messages for users
 - **Testing:** Basic pytest for core functionality only
 
-#### Advantages over Electron Stack
-- **Memory Usage:** ~30-50MB vs ~150MB (3x improvement)  
-- **Startup Time:** ~1-2 seconds vs ~3-5 seconds (2x faster)
-- **Single Language:** One ecosystem vs 5 different technologies
-- **Simplified Testing:** One framework vs multiple testing strategies
-- **Native Performance:** Direct OS APIs vs web technology abstraction layer
+#### Native Python Benefits
+- **Lightweight:** ~30-50MB memory footprint
+- **Fast startup:** 1-2 second application launch
+- **Single ecosystem:** Pure Python development and maintenance
+- **Native performance:** Direct Windows OS integration without web layer overhead
+- **Windows-optimized:** Tailored for Windows 10+ environment
 
 ### Project Structure
 
 ```
-WindVoice-Python/
+WindVoice-Windows/
 ├── src/
 │   ├── windvoice/
 │   │   ├── __init__.py
 │   │   ├── core/
 │   │   │   ├── __init__.py
 │   │   │   ├── app.py                    # Main application controller
-│   │   │   ├── state_manager.py          # Thread-safe global state
 │   │   │   ├── config.py                 # Configuration management  
 │   │   │   └── exceptions.py             # Custom exception classes
 │   │   ├── services/
 │   │   │   ├── __init__.py
-│   │   │   ├── audio_recorder.py         # Modern audio recording
-│   │   │   ├── hotkey_manager.py         # Global hotkey handling
-│   │   │   ├── text_injector.py          # Cross-platform text injection
-│   │   │   ├── transcription_service.py  # LiteLLM integration (migrated)
-│   │   │   ├── tray_service.py           # System tray management
-│   │   │   └── smart_ui_logic.py         # Intelligent UI decisions
+│   │   │   ├── audio.py                  # Audio recording and validation service
+│   │   │   ├── hotkeys.py                # Global hotkey handling
+│   │   │   ├── injection.py              # Windows text injection service
+│   │   │   └── transcription.py          # LiteLLM integration with validation
 │   │   ├── ui/
 │   │   │   ├── __init__.py
-│   │   │   ├── main_window.py            # Main application window (CustomTkinter)
-│   │   │   ├── popup_dialog.py           # Smart transcription popup
-│   │   │   ├── settings_window.py        # Configuration interface
-│   │   │   ├── components/               # Reusable UI components
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── recording_controls.py # Recording UI components
-│   │   │   │   └── transcription_display.py # Result display components
-│   │   │   └── themes/                   # UI themes and styling
-│   │   │       ├── __init__.py
-│   │   │       └── modern_theme.py       # CustomTkinter theme
+│   │   │   ├── menubar.py                # System tray/menu bar presence
+│   │   │   ├── popup.py                  # Minimal transcription popup
+│   │   │   └── settings.py               # Configuration panel
 │   │   └── utils/
 │   │       ├── __init__.py
-│   │       ├── audio_utils.py            # Audio processing utilities
-│   │       ├── platform_utils.py         # Cross-platform helpers
-│   │       ├── file_utils.py             # File management utilities
-│   │       └── logging_utils.py          # Logging configuration
+│   │       ├── windows.py                # Windows-specific helpers
+│   │       ├── audio_validation.py       # Audio quality and silence detection
+│   │       └── logging.py                # Logging configuration
 ├── tests/
 │   ├── __init__.py
 │   ├── conftest.py                       # Pytest configuration and fixtures
@@ -177,7 +166,6 @@ WindVoice-Python/
 ├── assets/
 │   ├── icons/
 │   │   ├── windvoice.ico                 # Windows icon
-│   │   ├── windvoice.icns                # macOS icon
 │   │   └── tray_icon.png                 # System tray icon
 │   └── sounds/                           # Audio feedback files
 │       ├── recording_start.wav           # Recording start sound
@@ -185,8 +173,7 @@ WindVoice-Python/
 ├── docs/
 │   ├── README.md                         # Project overview and quick start
 │   ├── DEVELOPMENT.md                    # Development setup guide
-│   ├── ARCHITECTURE.md                   # Technical architecture details
-│   └── MIGRATION.md                      # Migration guide from Electron version
+│   └── ARCHITECTURE.md                   # Technical architecture details
 ├── scripts/
 │   ├── build.py                          # PyInstaller build script
 │   ├── test.py                          # Test runner with coverage
@@ -204,59 +191,86 @@ WindVoice-Python/
 
 ## 🚀 User Experience & Workflows
 
-### Primary Use Case: Global Hotkey Mode (80% of usage)
+### Primary Use Case: System Tray Mode (90% of usage)
 
-**Seamless Background Operation:**
-1. **App Launch**: WindVoice starts minimized to system tray
+**Background Operation:**
+1. **App Launch**: WindVoice lives quietly in system tray/menu bar
 2. **Hotkey Activation**: User presses `Ctrl+Shift+Space` from **any application**
-3. **Instant Recording**: Recording begins immediately (pre-initialized audio stream)
-4. **Visual Feedback**: Minimal recording indicator (system tray animation)
-5. **Stop Recording**: Second hotkey press stops recording
-6. **Auto-Transcription**: LiteLLM processes audio automatically
+3. **Instant Recording**: Recording begins immediately with minimal visual feedback
+4. **Stop Recording**: Second hotkey press or automatic silence detection stops recording
+5. **Audio Validation**: Check for empty audio or silence before transcription
+6. **Smart Processing**: 
+   - **Valid audio detected** → Send to LiteLLM for transcription
+   - **Empty/silent audio** → Show notification "No voice detected in recording"
 7. **Smart Text Handling**: 
-   - **Active text field detected** → Auto-inject text immediately
-   - **No active field** → Show smart popup with transcription
-8. **Return to Background**: App stays invisible, user continues working
+   - **Successful transcription + Active text field** → Auto-inject text immediately
+   - **Successful transcription + No active field** → Show popup with transcription
+   - **Failed/empty transcription** → Clear user notification
+8. **Return to Background**: App remains invisible, user continues working
 
-### Secondary Use Case: Manual UI Mode (20% of usage)
+### Secondary Use Case: Settings Access (10% of usage)
 
-**Full Control Interface:**
-1. **Window Access**: User opens WindVoice from system tray
-2. **Manual Controls**: Click-based recording with visual feedback
-3. **File Management**: Access to recording history and settings
-4. **Transcription Review**: Edit and refine transcriptions before use
-5. **Flexible Actions**: Copy, inject, or save transcriptions
+**Minimal Configuration Interface:**
+1. **Settings Access**: Right-click system tray icon → Settings
+2. **API Configuration**: Set LiteLLM credentials and preferences
+3. **Hotkey Customization**: Configure activation shortcuts
+4. **Audio Preferences**: Device selection, quality settings, and silence detection
+5. **Smart Notifications**: Configure empty audio detection alerts
 
 ### Smart UI Decision Logic
 
 **Intelligent Context-Aware Behavior:**
 ```python
-async def handle_transcription_complete(self, text: str):
-    """Smart decision logic for transcription results"""
+async def handle_audio_processing(self, audio_file_path: str):
+    """Smart audio processing with validation"""
     
-    # 1. Try auto-injection (preferred method)
+    # 1. Validate audio content before transcription
+    audio_validation = self.validate_audio_content(audio_file_path)
+    if not audio_validation.has_voice:
+        self.show_user_notification(
+            "No voice detected in recording", 
+            "Please try recording again and speak clearly."
+        )
+        return
+    
+    # 2. Proceed with transcription
+    try:
+        text = await self.transcribe_audio(audio_file_path)
+        if text.strip():
+            await self.handle_transcription_result(text)
+        else:
+            self.show_user_notification(
+                "Transcription returned empty",
+                "Audio was processed but no text was generated."
+            )
+    except Exception as e:
+        self.show_user_notification(
+            "Transcription failed",
+            "Please check your internet connection and try again."
+        )
+
+async def handle_transcription_result(self, text: str):
+    """Handle successful transcription results"""
+    
+    # Try auto-injection (preferred method)
     if self.detect_active_text_field():
         success = await self.inject_text_safely(text)
         if success:
             self.show_brief_confirmation("✅ Text injected")
             return
     
-    # 2. Fallback to appropriate UI
-    if self.main_window_visible:
-        # UI open - update results display
-        self.main_window.show_transcription_result(text)
-    else:
-        # UI closed - show smart popup
-        popup = SmartTranscriptionPopup(text)
-        popup.show_with_focus()
+    # Fallback to popup
+    popup = SmartTranscriptionPopup(text)
+    popup.show_with_focus()
 ```
 
 **Smart Popup Features:**
-- **Always on top** with smart positioning
-- **Auto-focus** steals keyboard focus for immediate action
-- **Quick actions**: Copy to clipboard, inject text, dismiss
-- **Keyboard shortcuts**: Enter to inject, Escape to dismiss, Ctrl+C to copy
-- **Auto-dismiss** after successful injection or timeout
+- **Small, focused window** with transcription text or status message
+- **Quick actions**: Copy (Ctrl+C), Paste to active app (Enter), Dismiss (Escape)
+- **Auto-positioning** near cursor or screen center
+- **Auto-dismiss** after action or 10-second timeout
+- **Smart notifications**: Clear feedback for empty audio or recording issues
+- **Keyboard-first** interaction for Windows users
 
 ---
 
@@ -264,36 +278,35 @@ async def handle_transcription_complete(self, text: str):
 
 ### Sprint Structure (1-2 weeks per sprint)
 
-## Sprint 1: Foundation & Core Audio 🎤
+## Sprint 1: Minimal Viable Product (SuperWhisper-inspired) 🎤
 
-### Epic 1.1: Project Setup & Architecture
+### Epic 1.1: Core Foundation
 | Task | Description | Est. Hours | Priority |
 |------|-------------|------------|----------|
-| Project Structure | Create complete project structure with proper Python packaging | 4h | Critical |
-| Development Environment | Setup pytest, linting, formatting, type checking pipeline | 3h | Critical |
-| Configuration System | TOML-based config with cross-platform app directories | 3h | High |
-| Logging Framework | Structured logging with file rotation and console output | 2h | High |
-| **Total Sprint 1.1** | **Foundation setup complete** | **12h** | |
+| Project Structure | Simple Python package structure | 2h | Critical |
+| Configuration System | Basic TOML config for API credentials | 2h | Critical |
+| System Tray Setup | pystray menu bar presence | 3h | Critical |
+| Global Hotkeys | pynput hotkey registration (Ctrl+Shift+Space) | 3h | Critical |
+| **Total Sprint 1.1** | **Basic app foundation** | **10h** | |
 
-### Epic 1.2: Audio Recording System
+### Epic 1.2: Audio → Text Pipeline
 | Task | Description | Est. Hours | Priority |
 |------|-------------|------------|----------|
-| Audio Recorder Service | sounddevice + soundfile implementation with pre-initialization | 8h | Critical |
-| WAV File Generation | High-quality WAV output (44.1kHz, 16-bit) with proper headers | 4h | Critical |
-| Audio Quality Validation | Real-time audio level detection and quality diagnostics | 4h | High |
-| Error Handling | Comprehensive audio device error handling and fallbacks | 3h | High |
-| Unit Tests | Complete test coverage for audio recording functionality | 5h | Critical |
-| **Total Sprint 1.2** | **Professional audio recording system** | **24h** | |
+| Audio Recording | sounddevice implementation with start/stop | 4h | Critical |
+| WAV File Export | High-quality 44.1kHz output for Whisper | 2h | Critical |
+| Audio Validation | Detect empty/silent audio before transcription | 3h | Critical |
+| LiteLLM Integration | Direct aiohttp POST to transcription endpoint | 4h | Critical |
+| Smart Error Handling | Retry logic and clear user notifications for empty audio | 3h | High |
+| **Total Sprint 1.2** | **Working transcription pipeline with validation** | **16h** | |
 
-### Epic 1.3: LiteLLM Integration (Simple & Direct)
+### Epic 1.3: Smart Text Injection
 | Task | Description | Est. Hours | Priority |
 |------|-------------|------------|----------|
-| Direct HTTP Integration | Simple aiohttp POST to `/v1/audio/transcriptions` endpoint | 3h | Critical |
-| Configuration System | TOML-based config for LITELLM_API_KEY, API_BASE, KEY_ALIAS | 2h | Critical |
-| Simple Error Handling | Basic retry (3 attempts) and user-friendly error messages | 2h | High |
-| Model Configuration | Hard-code "whisper-1" model, make configurable later | 1h | Medium |
-| Basic Integration Test | Single test with real proxy (using test config) | 2h | High |
-| **Total Sprint 1.3** | **Simple transcription service working** | **10h** | |
+| Text Injection Service | pynput keyboard automation | 3h | Critical |
+| Active Field Detection | Basic detection of text input fields | 3h | High |
+| Minimal Popup | Simple popup for when injection fails | 3h | High |
+| Integration Testing | End-to-end workflow validation | 2h | Critical |
+| **Total Sprint 1.3** | **Complete minimal workflow** | **11h** | |
 
 **LiteLLM Integration Details:**
 ```python
@@ -326,121 +339,57 @@ async def transcribe_audio(audio_file_path: str) -> str:
             await asyncio.sleep(1)  # Wait 1 second before retry
 ```
 
-**Sprint 1 Deliverable**: Core recording and transcription system working via manual interface
+**Sprint 1 Deliverable**: Complete hotkey → record → transcribe → inject workflow working
 
 ---
 
-## Sprint 2: Modern UI & Manual Controls 🖥️
+## Sprint 2: Polish & Settings ⚙️
 
-### Epic 2.1: Simple CustomTkinter UI
+### Epic 2.1: Settings Interface
 | Task | Description | Est. Hours | Priority |
 |------|-------------|------------|----------|
-| Main Window | Clean CustomTkinter window with basic styling | 4h | Critical |
-| Recording Controls | Simple Start/Stop button with clear state | 2h | Critical |
-| Transcription Display | Simple text area with copy button | 2h | High |
-| Settings Panel | Basic form for API keys (LITELLM_API_KEY, API_BASE, KEY_ALIAS) | 3h | Critical |
-| Simple State Updates | Update UI when recording/transcribing | 2h | Medium |
-| **Total Sprint 2.1** | **Clean, functional UI** | **13h** | |
+| Settings Window | Simple dialog for configuration | 3h | Critical |
+| API Configuration | Form for LiteLLM credentials (API_KEY, API_BASE, KEY_ALIAS) | 2h | Critical |
+| Hotkey Customization | Allow users to change activation hotkey | 3h | High |
+| Audio Device Selection | Dropdown for microphone selection | 2h | High |
+| Settings Persistence | Save/load config from TOML file | 2h | Critical |
+| **Total Sprint 2.1** | **Complete settings management** | **12h** | |
 
-**UI Design Principle: Simple and Clear**
-- No fancy animations or complex themes
-- Clear labels: "Start Recording", "Stop Recording", "Transcribing..."
-- Settings clearly labeled: "LiteLLM API Key", "API Base URL", "Key Alias"
-- Error messages in plain English: "Recording failed - check microphone"
-- Success feedback: "Text copied to clipboard", "Recording saved"
-
-### Epic 2.2: File Management & History
+### Epic 2.2: Enhanced User Experience
 | Task | Description | Est. Hours | Priority |
 |------|-------------|------------|----------|
-| Recording History | List and manage previous recordings | 4h | High |
-| File Operations | Open recordings folder, delete files, export options | 3h | Medium |
-| Audio File Playback | Basic playback controls for reviewing recordings | 4h | Medium |
-| Settings Persistence | Save and restore user preferences | 2h | High |
-| **Total Sprint 2.2** | **Complete file management system** | **13h** | |
+| Visual Feedback | Tray icon animation during recording | 2h | High |
+| Audio Quality Indicators | Show recording levels and silence detection | 3h | High |
+| Smart Notifications | Clear messages for empty audio, transcription status | 3h | Critical |
+| Empty Audio Alerts | User-friendly notifications when no voice detected | 2h | Critical |
+| Keyboard Shortcuts | Quick actions in popup (Enter, Escape, Ctrl+C) | 2h | High |
+| **Total Sprint 2.2** | **Polished user experience with smart feedback** | **12h** | |
 
-**Sprint 2 Deliverable**: Full-featured manual UI application ready for daily use
+**Sprint 2 Deliverable**: Production-ready application with full configuration capabilities
 
 ---
 
-## Sprint 3: Global Hotkeys & Background Operation ⌨️
+## Sprint 3: Distribution & Final Polish 🚀
 
-### Epic 3.1: Hotkey Management System
+### Epic 3.1: Build & Packaging
 | Task | Description | Est. Hours | Priority |
 |------|-------------|------------|----------|
-| Global Hotkey Registration | pynput-based hotkey system with conflict detection | 6h | Critical |
-| Hotkey Configuration | Customizable hotkey combinations in settings | 4h | High |
-| Background State Management | Thread-safe state management for background operation | 5h | Critical |
-| Hotkey Workflow Integration | Connect hotkeys to recording and transcription pipeline | 4h | Critical |
-| **Total Sprint 3.1** | **Global hotkey system operational** | **19h** | |
+| PyInstaller Setup | Single executable build configuration | 4h | Critical |
+| Icon & Assets | Proper icon integration and asset bundling | 2h | High |
+| Windows Testing | Comprehensive testing on Windows 10+ systems | 4h | Critical |
+| Installation Process | Simple installer or portable executable | 3h | High |
+| **Total Sprint 3.1** | **Distributable application** | **13h** | |
 
-### Epic 3.2: System Tray Integration
+### Epic 3.2: Final Testing & Optimization
 | Task | Description | Est. Hours | Priority |
 |------|-------------|------------|----------|
-| System Tray Service | pystray implementation with context menu | 5h | Critical |
-| Tray Menu Actions | Recording controls, settings access, quit functionality | 4h | High |
-| Visual Feedback | Tray icon animation during recording | 3h | Medium |
-| Window Management | Show/hide main window, minimize to tray behavior | 3h | High |
-| **Total Sprint 3.2** | **Complete background operation** | **15h** | |
+| Performance Optimization | Memory usage and startup time optimization | 4h | High |
+| Comprehensive Testing | End-to-end workflow validation | 4h | Critical |
+| Error Handling Review | Ensure all error scenarios are handled gracefully | 3h | High |
+| Documentation | User guide and troubleshooting documentation | 3h | Medium |
+| **Total Sprint 3.2** | **Production-ready quality** | **14h** | |
 
-**Sprint 3 Deliverable**: Background hotkey activation working with tray integration
-
----
-
-## Sprint 4: Smart Text Injection & UI Logic 💉
-
-### Epic 4.1: Cross-Platform Text Injection
-| Task | Description | Est. Hours | Priority |
-|------|-------------|------------|----------|
-| Text Injection Service | pynput-based text injection with clipboard method | 6h | Critical |
-| Active Field Detection | Detect when text cursor is active in applications | 4h | High |
-| Platform-Specific Optimization | Windows/macOS specific injection improvements | 4h | High |
-| Clipboard Management | Safe clipboard save/restore functionality | 3h | High |
-| Injection Testing | Comprehensive testing across different applications | 4h | Critical |
-| **Total Sprint 4.1** | **Reliable text injection system** | **21h** | |
-
-### Epic 4.2: Smart UI Decision Logic
-| Task | Description | Est. Hours | Priority |
-|------|-------------|------------|----------|
-| Context Detection | Determine when to auto-inject vs show popup | 5h | Critical |
-| Smart Popup Dialog | Always-on-top popup with keyboard shortcuts | 6h | Critical |
-| UI State Coordination | Coordinate between main window, popup, and background modes | 4h | High |
-| User Feedback System | Confirmation notifications and error messages | 3h | High |
-| **Total Sprint 4.2** | **Intelligent UI behavior system** | **18h** | |
-
-**Sprint 4 Deliverable**: Complete smart text injection with context-aware UI decisions
-
----
-
-## Sprint 5: Polish & Distribution 🚀
-
-### Epic 5.1: Performance Optimization
-| Task | Description | Est. Hours | Priority |
-|------|-------------|------------|----------|
-| Memory Usage Optimization | Profile and optimize memory usage patterns | 4h | High |
-| Audio Latency Optimization | Minimize recording start delay and processing time | 4h | High |
-| Startup Time Optimization | Fast application launch and tray initialization | 3h | Medium |
-| Background Resource Usage | Minimal CPU usage when idle | 3h | Medium |
-| **Total Sprint 5.1** | **Performance targets achieved** | **14h** | |
-
-### Epic 5.2: Build & Distribution
-| Task | Description | Est. Hours | Priority |
-|------|-------------|------------|----------|
-| PyInstaller Configuration | Single executable build for Windows and macOS | 6h | Critical |
-| Icon & Asset Integration | Proper icon integration and asset bundling | 3h | High |
-| Auto-Updater Setup | Optional: Simple update mechanism | 4h | Low |
-| Distribution Testing | Test executables on different systems | 4h | High |
-| **Total Sprint 5.2** | **Distributable application ready** | **17h** | |
-
-### Epic 5.3: Testing & Quality Assurance
-| Task | Description | Est. Hours | Priority |
-|------|-------------|------------|----------|
-| Integration Test Suite | End-to-end workflow testing | 6h | Critical |
-| Cross-Platform Testing | Verify functionality on Windows and macOS | 4h | Critical |
-| Performance Testing | Memory usage and latency verification | 3h | High |
-| User Acceptance Testing | Real-world usage scenarios | 4h | High |
-| **Total Sprint 5.3** | **Production-ready quality assurance** | **17h** | |
-
-**Sprint 5 Deliverable**: Production-ready application with distribution packages
+**Sprint 3 Deliverable**: Production-ready WindVoice application ready for distribution
 
 ---
 
@@ -454,15 +403,15 @@ async def transcribe_audio(audio_file_path: str) -> str:
 - ✅ **Smart text injection** with 95%+ success rate across applications
 - ✅ **Context-aware UI** - auto-injection vs popup based on active text fields
 - ✅ **Background operation** with minimal system tray footprint
-- ✅ **Cross-platform compatibility** on Windows 10+ and macOS 12+
+- ✅ **Windows compatibility** optimized for Windows 10+ environment
 
 ### Performance Requirements
-- 🚀 **Memory Usage**: <50MB baseline (3x improvement over Electron)
-- ⚡ **Startup Time**: <2 seconds from launch to ready (2x improvement)
+- 🚀 **Memory Usage**: <50MB baseline (lightweight native app)
+- ⚡ **Startup Time**: <2 seconds from launch to ready
 - 🎤 **Recording Latency**: <100ms from hotkey press to recording start
 - 🤖 **Transcription Speed**: <3 seconds for typical 10-second audio clip
 - 💉 **Text Injection**: <200ms from transcription complete to text appear
-- 🔄 **Background CPU**: <1% when idle (vs 3-5% Electron baseline)
+- 🔄 **Background CPU**: <1% when idle (minimal system impact)
 
 ### Quality Requirements (Simple & Practical)
 - 🧪 **Testing**: Basic tests for core functions only - no over-testing
@@ -472,7 +421,7 @@ async def transcribe_audio(audio_file_path: str) -> str:
   - Never log API keys or sensitive data
   - Use system's secure storage when available
 - 📊 **Reliability**: App should work consistently, handle common errors gracefully
-- 🌐 **Platform Consistency**: Same behavior on Windows and macOS
+- 🎧 **Audio Validation**: Detect and report empty or silent recordings
 - 📝 **Error Messages**: User-friendly, not technical
   - ❌ "HTTPConnectionError: 503 Service Unavailable"
   - ✅ "Transcription service is temporarily unavailable. Try again in a moment."
@@ -527,12 +476,36 @@ export KEY_ALIAS="your-username"
 
 ### Error Handling Examples
 ```python
-# Good error handling - user-friendly messages
+# Audio validation and user-friendly error messages
+def validate_audio_content(audio_file_path: str) -> AudioValidation:
+    """Validate audio contains speech before transcription"""
+    audio_data, sample_rate = sf.read(audio_file_path)
+    
+    # Check for silence (RMS below threshold)
+    rms = np.sqrt(np.mean(audio_data**2))
+    silence_threshold = 0.01  # Adjustable threshold
+    
+    # Check duration
+    duration = len(audio_data) / sample_rate
+    min_duration = 0.5  # Minimum 0.5 seconds
+    
+    return AudioValidation(
+        has_voice=rms > silence_threshold and duration >= min_duration,
+        rms_level=rms,
+        duration=duration
+    )
+
+# User-friendly error handling
 if not config.litellm_api_key:
     show_error("LiteLLM API key not configured. Please check Settings.")
     return
 
-if response.status == 401:
+if not audio_validation.has_voice:
+    show_notification(
+        "No voice detected",
+        "Your recording appears to be silent. Please try again."
+    )
+elif response.status == 401:
     show_error("API key is invalid. Please check your LiteLLM settings.")
 elif response.status == 503:
     show_error("Transcription service is temporarily unavailable.")
@@ -540,35 +513,17 @@ else:
     show_error(f"Transcription failed. Please try again.")
 ```
 
-## 🔄 Migration Strategy from Electron Version
+## 🚀 Implementation Benefits
 
-### Phase 1: Parallel Development (Weeks 1-6)
-- **Keep existing** WindVoice Electron app operational
-- **Develop WindVoice Python** with feature parity focus
-- **Reuse LiteLLM integration** directly (seamless migration)
-- **Validate with small user group** before full transition
-
-### Phase 2: User Testing & Feedback (Week 7-8)
-- **Beta testing** with existing WindVoice users
-- **Performance comparison** - memory, speed, reliability metrics
-- **Feature validation** - ensure no functionality regression
-- **Bug fixes** based on real-world usage feedback
-
-### Phase 3: Full Migration (Week 9-10)
-- **Documentation migration** - update all guides and references
-- **User communication** - migration benefits and timeline
-- **Gradual rollout** - optional upgrade then full transition
-- **Legacy support** - maintain Electron version for edge cases
-
-### Migration Benefits Communication
-| Aspect | Before (Electron) | After (Python) | Improvement |
-|--------|-------------------|----------------|-------------|
-| **App Size** | ~120MB installer | ~35MB installer | 70% smaller |
-| **Memory Usage** | ~150MB runtime | ~45MB runtime | 70% less |
-| **Startup Time** | 4-6 seconds | 1-2 seconds | 3x faster |
-| **Text Injection Reliability** | 85% success rate | 98% success rate | 15% improvement |
-| **Development Complexity** | 5 technology stack | Single Python codebase | 80% simpler |
-| **Bug Fix Time** | Cross-stack debugging | Single-language fixes | 60% faster |
+### Native Python Advantages
+| Aspect | Target | Benefit |
+|--------|--------|----------|
+| **App Size** | ~35MB installer | Compact distribution |
+| **Memory Usage** | ~45MB runtime | Lightweight operation |
+| **Startup Time** | 1-2 seconds | Fast application launch |
+| **Text Injection Reliability** | 98% success rate | Cross-app compatibility |
+| **Development Complexity** | Single Python codebase | Simplified maintenance |
+| **Native Integration** | Direct OS APIs | Superior performance |
 
 ---
 
@@ -576,12 +531,13 @@ else:
 
 ### Technical Risks
 
-#### High Risk: Cross-Platform Audio Compatibility
-- **Risk**: sounddevice driver issues on some systems
+#### High Risk: Windows Audio Device Compatibility
+- **Risk**: sounddevice driver issues on different Windows systems
 - **Mitigation**: 
   - Multiple fallback audio libraries (pyaudio, wave)
-  - Comprehensive device compatibility testing
+  - Comprehensive Windows audio device compatibility testing
   - Clear error messages and audio device selection UI
+  - Windows-specific audio API optimization
 
 #### Medium Risk: Text Injection Reliability  
 - **Risk**: Different applications handle pynput injection differently
@@ -628,9 +584,9 @@ else:
 - **Reliability**: <1 crash per 100 hours of usage
 
 ### User Experience Metrics
-- **Adoption**: >90% of Electron users migrate successfully
-- **Satisfaction**: >8/10 user satisfaction score
-- **Usage**: >95% of recordings result in successful text injection or user action
+- **Success Rate**: >95% of recordings result in successful text injection or user action
+- **User Satisfaction**: >8/10 user satisfaction score
+- **Reliability**: <1 failure per 100 transcription attempts
 
 ---
 
@@ -640,4 +596,4 @@ else:
 **Next Review**: After Sprint 2 completion  
 **Status**: Ready for development - comprehensive Python-only architecture defined
 
-**Key Success Factor**: Simplicity through single-technology stack while maintaining all essential features and improving performance significantly.
+**Key Success Factor**: SuperWhisper-inspired simplicity - menu bar presence, instant hotkey activation, and seamless text injection with minimal user interface complexity.

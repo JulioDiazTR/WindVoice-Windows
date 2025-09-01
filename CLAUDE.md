@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-WindVoice is a modern cross-platform voice dictation application that enables fast and accurate audio-to-text transcription with automatic text insertion into any active application. This repository contains the Windows Python implementation of WindVoice, designed as a complete rewrite from the previous Electron version for improved performance and resource efficiency.
+WindVoice-Windows is a native Windows voice dictation application that enables fast and accurate audio-to-text transcription with automatic text insertion into any Windows application. Built with 100% Python for optimal performance and resource efficiency on Windows 10+ systems.
 
 ## Architecture
 
@@ -21,10 +21,10 @@ The project follows a **100% Python architecture** using a single unified proces
 
 ```
 src/windvoice/
-├── core/               # Application controller, state management, config
-├── services/           # Audio, hotkeys, text injection, transcription, tray
-├── ui/                # CustomTkinter interface, popup dialogs, settings
-└── utils/             # Cross-platform helpers, file management, logging
+├── core/               # Application controller, config, exceptions
+├── services/           # Audio recording/validation, hotkeys, text injection, transcription
+├── ui/                # System tray, popup dialog, settings panel
+└── utils/             # Windows-specific helpers, audio validation, logging
 ```
 
 ## Development Commands
@@ -72,40 +72,52 @@ model = "whisper-1" # OpenAI Whisper model via proxy
 ```
 
 ### Transcription Service Implementation
+- **Audio validation first**: Check RMS levels and duration before API call
 - Direct aiohttp POST calls to `/v1/audio/transcriptions` endpoint
-- Simple retry logic (3 attempts with 1-second delays)
+- Simple retry logic (3 attempts with 1-second delays) 
 - High-quality WAV audio format (44.1kHz, 16-bit) optimized for Whisper
-- User-friendly error handling with clear, non-technical messages
+- **Smart error handling**: 
+  - Empty audio → "No voice detected" notification
+  - API errors → User-friendly messages without technical details
 
 ## Core User Workflows
 
-### Primary: Global Hotkey Mode (80% usage)
-1. User presses `Ctrl+Shift+Space` from any application
+### Primary: System Tray Hotkey Mode (90% usage)
+1. User presses `Ctrl+Shift+Space` from any Windows application
 2. Instant recording begins with pre-initialized audio stream
-3. Second hotkey press stops recording  
-4. Automatic transcription via LiteLLM
-5. Smart text handling: auto-inject if text field detected, otherwise show popup
+3. Second hotkey press stops recording
+4. **Audio validation**: Check for empty/silent audio before transcription
+5. **Smart user feedback**: If no voice detected, show "No voice detected in recording"
+6. **Transcription**: If valid audio, process via LiteLLM
+7. **Smart injection**: Auto-inject if text field detected, otherwise show popup
 
-### Secondary: Manual UI Mode (20% usage)
-1. User opens WindVoice from system tray
-2. Manual recording controls with visual feedback
-3. Transcription review and editing capabilities
-4. Flexible actions: copy, inject, or save results
+### Secondary: Settings Access (10% usage)
+1. Right-click system tray icon → Settings
+2. Configure LiteLLM API credentials
+3. Customize hotkeys and audio preferences
+4. Set audio validation sensitivity
 
-## Smart UI Decision Logic
+## Smart Audio Processing & UI Logic
 
-The application uses intelligent context-aware behavior:
-- **Auto-injection preferred:** Direct text insertion when active text field detected
-- **Smart popup fallback:** Always-on-top dialog when no injection target
-- **UI coordination:** Seamless switching between main window, popup, and background modes
+### Audio Validation (Critical Feature)
+- **Pre-transcription validation**: Check RMS levels and duration before sending to LiteLLM
+- **Silent audio detection**: Notify user immediately if recording contains no voice
+- **Configurable thresholds**: Adjustable sensitivity for silence detection
+- **Clear notifications**: "No voice detected in recording. Please try again."
+
+### Smart Text Handling
+- **Auto-injection preferred**: Direct text insertion when active text field detected
+- **Smart popup fallback**: Minimal popup when no injection target available
+- **Windows-optimized**: Tailored for Windows text injection APIs
 
 ## Performance Targets
 
-- **Memory Usage:** <50MB baseline (3x improvement over Electron)
-- **Startup Time:** <2 seconds from launch to ready
+- **Memory Usage:** <50MB baseline (lightweight native Windows app)
+- **Startup Time:** <2 seconds from launch to system tray ready
 - **Recording Latency:** <100ms from hotkey press to recording start
+- **Audio Validation:** <50ms to detect empty/silent audio
 - **Text Injection:** <200ms from transcription complete to text appearance
-- **Background CPU:** <1% when idle
+- **Background CPU:** <1% when idle (minimal Windows system impact)
 
 ## Security Requirements
 
@@ -117,35 +129,43 @@ The application uses intelligent context-aware behavior:
 
 ## Development Phases
 
-The project follows a sprint-based development approach:
+Simplified 3-sprint approach focused on Windows-native experience:
 
-1. **Sprint 1:** Foundation & Core Audio (recording + transcription)
-2. **Sprint 2:** Modern UI & Manual Controls  
-3. **Sprint 3:** Global Hotkeys & Background Operation
-4. **Sprint 4:** Smart Text Injection & UI Logic
-5. **Sprint 5:** Polish & Distribution
+1. **Sprint 1:** MVP - Hotkey recording, audio validation, transcription, injection (33h)
+2. **Sprint 2:** Settings UI, enhanced UX, smart notifications (24h)  
+3. **Sprint 3:** Build system, distribution, final polish (27h)
 
-## Cross-Platform Considerations
+## Windows-Specific Requirements
 
-- **Windows 10+** and **macOS 12+** support required
-- Use platform-specific optimizations for text injection reliability
-- Handle audio device differences across operating systems
-- Consistent behavior and UI appearance across platforms
+- **Windows 10+ compatibility** with modern Windows APIs
+- **Native Windows integration** for reliable text injection
+- **System tray behavior** following Windows UI guidelines
+- **Windows audio system** optimization for device compatibility
+- **Windows hotkey standards** and conflict resolution
 
-## Error Handling Philosophy
+## Development Standards
 
-- Show clear, user-friendly error messages
-- Avoid technical jargon in user-facing messages
-- Example: "Transcription service is temporarily unavailable" vs "HTTPConnectionError: 503"
-- Fail gracefully without crashing
-- Provide actionable guidance when possible
-- All code must be properly commented.
-- All generated code must be in English.
-- All code must be documented in English
-- Python best practices should always be used
-- Every key should not be commented or hardcoded in the code, env should be used for handling sensitive data that should not go in the repo
-- You should always review the docs folder to understand how the app works and the app specifications before making any changes to the app.
-- After making changes, the documentation should always be updated.
-- All documentation created must be in English.
-- All code created must be testable
-- For new features and developments, associated testing development must be done.
+### Code Quality
+- All code must be properly commented and documented in English
+- Follow Python best practices and PEP 8 standards
+- All code must be testable with associated unit tests
+- Never hardcode sensitive data - use environment variables or config files
+
+### Error Handling Philosophy
+- **User-friendly messages**: "No voice detected in recording" vs technical errors
+- **Smart notifications**: Clear feedback for empty audio, transcription failures
+- **Graceful degradation**: Never crash, always provide actionable guidance
+- **Examples**:
+  - ✅ "Recording appears to be silent. Please try again."
+  - ❌ "RMS threshold 0.01 not met in audio validation"
+
+### Documentation Requirements
+- Always review `docs/PRD.md` before making changes to understand specifications
+- Update documentation after implementing features
+- All documentation must be in English
+- Include technical implementation details for audio validation and Windows integration
+
+### Security Requirements
+- Store LiteLLM credentials in `~/.windvoice/config.toml`
+- Never log API keys or sensitive data
+- Use Windows secure storage APIs when available
