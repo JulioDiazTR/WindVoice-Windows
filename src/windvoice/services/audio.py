@@ -146,6 +146,9 @@ class AudioRecorder:
             if not self.test_device(self.device):
                 raise AudioError(f"Audio device test failed for device: {self.device}")
             
+            # CRITICAL FIX: Clear any previous audio data to prevent caching bug
+            self.audio_data = None
+            
             self.logger.info(f"Starting sounddevice recording...")
             self.audio_data = sd.rec(
                 buffer_size,
@@ -295,11 +298,16 @@ class AudioRecorder:
                 }
             )
             
+            # CRITICAL FIX: Clear audio data after saving to prevent buffer reuse
+            self.audio_data = None
+            
             return str(temp_file)
             
         except Exception as e:
             self.logger.error(f"Failed to stop recording: {e}")
             self.recording = False
+            # Clear audio data on error too
+            self.audio_data = None
             WindVoiceLogger.log_audio_workflow_step(
                 self.logger,
                 "Recording_Stop_FAILED",

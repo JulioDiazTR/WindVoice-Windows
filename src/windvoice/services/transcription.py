@@ -31,11 +31,28 @@ class TranscriptionService:
         if not Path(audio_file_path).exists():
             raise TranscriptionError(f"Audio file not found: {audio_file_path}")
         
+        # CRITICAL FIX: Force fresh session for each transcription to prevent caching
+        if self.session and not self.session.closed:
+            await self.session.close()
+        self.session = None
+        
+        # Generate unique identifier for this request
+        import time
+        import uuid
+        request_id = str(uuid.uuid4())[:8]
+        timestamp = int(time.time() * 1000)  # milliseconds
+        
         url = f"{self.config.api_base}/v1/audio/transcriptions"
         headers = {
             "Authorization": f"Bearer {self.config.api_key}",
-            "X-Key-Alias": self.config.key_alias
+            "X-Key-Alias": self.config.key_alias,
+            "X-Request-ID": request_id,  # Unique identifier
+            "Cache-Control": "no-cache"  # Prevent caching
         }
+        
+        # Log detailed request information
+        file_size = Path(audio_file_path).stat().st_size
+        self.logger.info(f"[TRANSCRIPTION_REQUEST] ID: {request_id}, File: {audio_file_path}, Size: {file_size} bytes")
         
         # Retry logic - 3 attempts with 1-second delays
         for attempt in range(3):
@@ -47,19 +64,31 @@ class TranscriptionService:
                 with open(audio_file_path, 'rb') as audio_file:
                     audio_content = audio_file.read()
                     
+                # Add unique filename with timestamp to prevent server-side caching
+                unique_filename = f'audio_{timestamp}_{request_id}.wav'
                 data.add_field(
                     'file',
                     audio_content,
-                    filename='audio.wav',
+                    filename=unique_filename,
                     content_type='audio/wav'
                 )
                 data.add_field('model', self.config.model)
                 data.add_field('response_format', 'json')
+                data.add_field('timestamp', str(timestamp))  # Force unique request
                 
                 async with session.post(url, headers=headers, data=data) as response:
                     if response.status == 200:
                         result = await response.json()
-                        return result.get('text', '').strip()
+                        transcribed_text = result.get('text', '').strip()
+                        
+                        # Log detailed response information
+                        self.logger.info(f"[TRANSCRIPTION_RESPONSE] ID: {request_id}, Status: 200, Text: '{transcribed_text}', Length: {len(transcribed_text)}")
+                        
+                        # Force session cleanup after successful transcription
+                        await session.close()
+                        self.session = None
+                        
+                        return transcribed_text
                     
                     elif response.status == 401:
                         error_text = await response.text()
