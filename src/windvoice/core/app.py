@@ -14,6 +14,7 @@ from ..services.hotkeys import HotkeyManager
 from ..ui.menubar import SystemTrayService
 from ..ui.settings import SettingsWindow
 from ..ui.popup import show_smart_popup
+from ..ui.simple_visible_status import SimpleVisibleStatusManager
 from ..utils.logging import get_logger, WindVoiceLogger, setup_logging
 
 
@@ -42,6 +43,7 @@ class WindVoiceApp:
         self.root_window: Optional[tk.Tk] = None
         self.settings_window: Optional[SettingsWindow] = None
         self.current_popup = None
+        self.status_dialog: Optional[SimpleVisibleStatusManager] = None
         
         # State
         self.recording = False
@@ -135,6 +137,11 @@ class WindVoiceApp:
         self.settings_window = SettingsWindow(self.config_manager, self.audio_recorder)
         self.logger.info("SettingsWindow initialized successfully")
         
+        # Status dialog for visual feedback
+        self.logger.info("Initializing SimpleVisibleStatusManager...")
+        self.status_dialog = SimpleVisibleStatusManager()
+        self.logger.info("SimpleVisibleStatusManager initialized successfully")
+        
         self.logger.info("All services initialized successfully")
     
     async def start(self):
@@ -215,6 +222,10 @@ class WindVoiceApp:
         if self.audio_recorder:
             self.audio_recorder.cleanup_temp_files()
         
+        # Hide status dialog
+        if self.status_dialog:
+            self.status_dialog.hide()
+        
         # Close UI root window
         if self.root_window:
             try:
@@ -267,11 +278,12 @@ class WindVoiceApp:
             self.recording = True
             self.system_tray.set_recording_state(True)
             
+            # Show fast visual feedback in the main UI thread
+            if self.root_window:
+                self.root_window.after(0, self.status_dialog.show_recording)
+            
             # Start real-time level monitoring
             self.level_monitor_task = asyncio.create_task(self._monitor_recording_levels())
-            
-            if self.config.ui.show_tray_notifications:
-                self.system_tray.show_notification("WindVoice", "🎤 Recording started...")
             
             self.logger.info("Calling audio_recorder.start_recording()...")
             self.audio_recorder.start_recording()
@@ -286,22 +298,24 @@ class WindVoiceApp:
             self.logger.error(f"AudioError in _start_recording: {e}")
             self.recording = False
             self.system_tray.set_recording_state(False)
+            if self.root_window:
+                self.root_window.after(0, self.status_dialog.show_error)
             WindVoiceLogger.log_audio_workflow_step(
                 self.logger,
                 "Recording_Start_AUDIO_ERROR",
                 {"error": str(e)}
             )
-            self._show_error_notification("Recording Error", str(e))
         except Exception as e:
             self.logger.error(f"General error in _start_recording: {e}")
             self.recording = False
             self.system_tray.set_recording_state(False)
+            if self.root_window:
+                self.root_window.after(0, self.status_dialog.show_error)
             WindVoiceLogger.log_audio_workflow_step(
                 self.logger,
                 "Recording_Start_GENERAL_ERROR",
                 {"error": str(e)}
             )
-            self._show_error_notification("Error", f"Failed to start recording: {e}")
     
     async def _monitor_recording_levels(self):
         """Monitor recording levels for visual feedback"""
@@ -309,7 +323,9 @@ class WindVoiceApp:
             while self.recording:
                 if self.audio_recorder and self.audio_recorder.is_recording():
                     level = self.audio_recorder.get_current_level()
+                    # Update both system tray and status dialog
                     self.system_tray.update_recording_level(level)
+                    self.status_dialog.update_audio_level(level)
                     
                 await asyncio.sleep(0.1)  # Update 10 times per second
                 
@@ -367,8 +383,9 @@ class WindVoiceApp:
             )
             
             if not quality_metrics.has_voice:
-                self.logger.info(f"No voice detected - showing notification: {title}")
-                self._show_smart_notification(title, message, is_error=False)
+                self.logger.info(f"No voice detected - showing error state")
+                if self.root_window:
+                    self.root_window.after(0, self.status_dialog.show_error)
                 # Clean up the invalid audio file
                 Path(audio_file_path).unlink(missing_ok=True)
                 WindVoiceLogger.log_audio_workflow_step(
@@ -378,15 +395,9 @@ class WindVoiceApp:
                 )
                 return
             
-            # Show quality feedback if enabled
-            if self.config.ui.show_tray_notifications:
-                if quality_metrics.quality_score < 60:
-                    self.system_tray.show_notification(
-                        "Audio Quality Warning", 
-                        f"Quality: {quality_metrics.quality_score:.0f}/100. Transcription may be less accurate."
-                    )
-                else:
-                    self.system_tray.show_notification("WindVoice", "🤖 Transcribing audio...")
+            # Show processing animation in the main UI thread
+            if self.root_window:
+                self.root_window.after(0, self.status_dialog.show_processing)
             
             # Transcribe audio
             self.logger.info("Starting transcription...")
@@ -413,10 +424,8 @@ class WindVoiceApp:
             
             if not transcription_successful:
                 self.logger.warning(f"Transcription failed - keeping audio file for debugging")
-                self._show_smart_notification(
-                    "Transcription empty",
-                    f"Audio was processed but no text was generated. Audio saved for debugging."
-                )
+                if self.root_window:
+                    self.root_window.after(0, self.status_dialog.show_error)
                 # Don't delete the file so user can inspect it
                 print(f"Transcription failed - audio file kept at: {audio_file_path}")
                 WindVoiceLogger.log_audio_workflow_step(
@@ -440,30 +449,33 @@ class WindVoiceApp:
         except AudioError as e:
             self.logger.error(f"AudioError in _stop_recording: {e}")
             await self._cleanup_recording_state()
+            if self.root_window:
+                self.root_window.after(0, self.status_dialog.show_error)
             WindVoiceLogger.log_audio_workflow_step(
                 self.logger,
                 "Recording_Stop_AUDIO_ERROR",
                 {"error": str(e)}
             )
-            self._show_smart_notification("Recording Error", str(e), is_error=True)
         except TranscriptionError as e:
             self.logger.error(f"TranscriptionError in _stop_recording: {e}")
             await self._cleanup_recording_state()
+            if self.root_window:
+                self.root_window.after(0, self.status_dialog.show_error)
             WindVoiceLogger.log_audio_workflow_step(
                 self.logger,
                 "Recording_Stop_TRANSCRIPTION_ERROR",
                 {"error": str(e)}
             )
-            self._show_smart_notification("Transcription Error", str(e), is_error=True)
         except Exception as e:
             self.logger.error(f"General error in _stop_recording: {e}")
             await self._cleanup_recording_state()
+            if self.root_window:
+                self.root_window.after(0, self.status_dialog.show_error)
             WindVoiceLogger.log_audio_workflow_step(
                 self.logger,
                 "Recording_Stop_GENERAL_ERROR",
                 {"error": str(e)}
             )
-            self._show_smart_notification("Error", f"Failed to process recording: {e}", is_error=True)
     
     async def _cleanup_recording_state(self):
         """Clean up recording state after error"""
@@ -484,10 +496,13 @@ class WindVoiceApp:
             success = self.text_injection_service.inject_text(text)
             
             if success:
-                if self.config.ui.show_tray_notifications:
-                    self.system_tray.show_notification("WindVoice", "✅ Text injected successfully")
+                # Show success animation and auto-close
+                if self.root_window:
+                    self.root_window.after(0, self.status_dialog.show_success)
             else:
-                # Fallback: show smart popup with enhanced UI
+                # Hide status dialog and show smart popup for text copy
+                if self.root_window:
+                    self.root_window.after(0, self.status_dialog.hide)
                 self.current_popup = show_smart_popup(
                     text, 
                     context="injection_failed",
@@ -495,13 +510,26 @@ class WindVoiceApp:
                 )
                 
         except Exception as e:
-            self._show_smart_notification("Text Injection Error", str(e), is_error=True)
-            # Fallback: show the text in popup
-            self.current_popup = show_smart_popup(
-                text, 
-                context="injection_error",
-                timeout=20
-            )
+            # Show error state briefly, then fallback to popup
+            if self.root_window:
+                self.root_window.after(0, self.status_dialog.show_error)
+                # Schedule popup after error display
+                self.root_window.after(1000, lambda: self._show_injection_error_popup(text))
+            else:
+                self.current_popup = show_smart_popup(
+                    text, 
+                    context="injection_error",
+                    timeout=20
+                )
+    
+    def _show_injection_error_popup(self, text: str):
+        """Helper method to show injection error popup"""
+        self.status_dialog.hide()
+        self.current_popup = show_smart_popup(
+            text, 
+            context="injection_error",
+            timeout=20
+        )
     
     def _show_smart_notification(self, title: str, message: str, is_error: bool = False):
         """Show intelligent notifications with better formatting"""
