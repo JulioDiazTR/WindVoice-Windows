@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git commit:*)",
+      "WebFetch(domain:superwhisper.com)",
+      "WebSearch",
+      "Bash(git add:*)",
+      "Bash(python:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
