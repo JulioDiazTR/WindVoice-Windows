@@ -142,19 +142,19 @@ class SimpleVisibleStatus:
             bg_color = "#1a0000"  # Dark red base
             accent_color = "#ff4444"
             text_color = "white"
-            message = "🎤 GRABANDO"
+            message = "🎤 RECORDING"
             glow_color = "#ff6666"
         elif status_type == StatusType.PROCESSING:
             bg_color = "#00001a"  # Dark blue base  
             accent_color = "#4444ff"
             text_color = "white"
-            message = "⚡ PROCESANDO"
+            message = "⚡ PROCESSING"
             glow_color = "#6666ff"
         elif status_type == StatusType.SUCCESS:
             bg_color = "#001a00"  # Dark green base
             accent_color = "#44ff44"
             text_color = "white"
-            message = "✅ ÉXITO"
+            message = "✅ SUCCESS"
             glow_color = "#66ff66"
         else:  # ERROR
             bg_color = "#1a0a00"  # Dark orange base
@@ -398,10 +398,10 @@ class SimpleVisibleStatus:
         """Fallback: show status in console with system notification"""
         
         messages = {
-            StatusType.RECORDING: "🎤 GRABANDO - Presiona el hotkey para detener",
-            StatusType.PROCESSING: "⚡ PROCESANDO - Transcribiendo audio...",
-            StatusType.SUCCESS: "✅ ÉXITO - Texto insertado correctamente",
-            StatusType.ERROR: "❌ ERROR - Hubo un problema con la transcripción"
+            StatusType.RECORDING: "🎤 RECORDING - Press hotkey to stop",
+            StatusType.PROCESSING: "⚡ PROCESSING - Transcribing audio...",
+            StatusType.SUCCESS: "✅ SUCCESS - Text inserted successfully",
+            StatusType.ERROR: "❌ ERROR - There was a problem with transcription"
         }
         
         message = messages.get(status_type, "Status update")

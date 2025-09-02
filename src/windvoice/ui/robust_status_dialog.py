@@ -272,7 +272,7 @@ class RobustStatusDialog:
         # Simple text
         self.canvas.create_text(
             center_x, center_y + 50,
-            text="GRABANDO", font=('Arial', 10, 'bold'),
+            text="RECORDING", font=('Arial', 10, 'bold'),
             fill='red', tags="animation"
         )
         
@@ -300,7 +300,7 @@ class RobustStatusDialog:
         # Simple text
         self.canvas.create_text(
             center_x, center_y + 50,
-            text="PROCESANDO", font=('Arial', 10, 'bold'),
+            text="PROCESSING", font=('Arial', 10, 'bold'),
             fill='blue', tags="animation"
         )
         
@@ -324,7 +324,7 @@ class RobustStatusDialog:
         # Simple text
         self.canvas.create_text(
             center_x, center_y + 50,
-            text="ÉXITO", font=('Arial', 10, 'bold'),
+            text="SUCCESS", font=('Arial', 10, 'bold'),
             fill='green', tags="animation"
         )
         
