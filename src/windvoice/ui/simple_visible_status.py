@@ -63,7 +63,7 @@ class SimpleVisibleStatus:
         # Create visible toplevel window
         self.current_window = tk.Toplevel(root)
         
-        # Configure for modern transparent appearance
+        # Configure for modern transparent appearance WITHOUT stealing focus
         self.current_window.title("WindVoice Status")
         self.current_window.geometry("160x80")  # More compact
         self.current_window.attributes("-topmost", True)
@@ -71,6 +71,34 @@ class SimpleVisibleStatus:
         self.current_window.attributes("-alpha", 0.5)  # Even more transparent
         self.current_window.resizable(False, False)
         self.current_window.overrideredirect(True)  # Remove window decorations
+        
+        # CRITICAL: Make window non-focusable to preserve text field focus
+        try:
+            # Windows-specific: Make window non-focusable using Win32 API
+            import ctypes
+            from ctypes import wintypes
+            
+            # Get window handle
+            hwnd = self.current_window.winfo_id()
+            
+            # Set WS_EX_NOACTIVATE extended style to prevent focus stealing
+            GWL_EXSTYLE = -20
+            WS_EX_NOACTIVATE = 0x08000000
+            
+            # Get current extended style
+            current_style = ctypes.windll.user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
+            
+            # Add WS_EX_NOACTIVATE flag
+            new_style = current_style | WS_EX_NOACTIVATE
+            
+            # Apply new style
+            ctypes.windll.user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_style)
+            
+            print("✅ Status dialog configured as non-focusable")
+            
+        except Exception as e:
+            print(f"⚠️ Warning: Could not make status window non-focusable: {e}")
+            # Continue anyway - the dialog will work but may steal focus
         
         # Position based on user preference or smart cursor placement
         window_width, window_height = 160, 80
@@ -194,10 +222,10 @@ class SimpleVisibleStatus:
             anchor='center'
         )
         
-        # Force visibility
+        # Force visibility WITHOUT stealing focus from active applications
         self.current_window.deiconify()
         self.current_window.lift()
-        self.current_window.focus_force()
+        # REMOVED: self.current_window.focus_force()  # This steals focus from text fields!
         self.current_window.update()
         
         # Auto-hide after duration using Tkinter's after method (thread-safe)
@@ -294,7 +322,7 @@ class SimpleVisibleStatus:
             }
     
     def _on_drag_start(self, event):
-        """Start dragging the window"""
+        """Start dragging the window WITHOUT stealing focus"""
         self.dragging = True
         self.drag_start_x = event.x
         self.drag_start_y = event.y
@@ -304,6 +332,9 @@ class SimpleVisibleStatus:
             self.current_window.configure(cursor="fleur")
             # Slightly increase opacity when dragging
             self.current_window.attributes("-alpha", min(0.85, self.current_window.attributes("-alpha") + 0.2))
+            
+            # IMPORTANT: Don't focus the window during drag operations
+            # This preserves focus in the original text field
     
     def _on_drag_motion(self, event):
         """Handle window dragging with smooth movement"""

@@ -420,7 +420,14 @@ class SettingsWindow:
                 self.audio_recorder = AudioRecorder()
                 
             self.available_devices = self.audio_recorder.get_available_devices()
-            device_names = ["default"] + [f"{dev['name']} (ID: {dev['index']})" for dev in self.available_devices]
+            
+            # Get default device name
+            default_device_name = "default"
+            default_device = self.audio_recorder.get_default_input_device()
+            if default_device:
+                default_device_name = f"default ({default_device['name']})"
+            
+            device_names = [default_device_name] + [f"{dev['name']} (ID: {dev['index']})" for dev in self.available_devices]
             
             self.audio_device_combo.configure(values=device_names)
             
@@ -428,8 +435,10 @@ class SettingsWindow:
             current_device = self.config.app.audio_device
             if current_device in device_names:
                 self.audio_device_var.set(current_device)
+            elif current_device == "default":
+                self.audio_device_var.set(default_device_name)
             else:
-                self.audio_device_var.set("default")
+                self.audio_device_var.set(default_device_name)
                 
         except Exception as e:
             messagebox.showerror("Audio Error", f"Failed to load audio devices: {e}")
@@ -779,21 +788,26 @@ class SettingsWindow:
             device_name = self.audio_device_var.get()
             device_index = None
             
-            if device_name != "default":
+            # Handle both "default" and "default (device name)" formats
+            if not (device_name == "default" or device_name.startswith("default (")):
                 # Find device index
                 for dev in self.available_devices:
                     if f"{dev['name']} (ID: {dev['index']})" == device_name:
                         device_index = dev['index']
                         break
                         
-            success = self.audio_recorder.test_device(device_index)
+            success, error_reason = self.audio_recorder.test_device(device_index)
             
             if success:
                 self.test_mic_button.configure(text="✅ Microphone OK")
                 self.window.after(3000, lambda: self._reset_mic_test_button())
             else:
-                self.test_mic_button.configure(text="❌ Test Failed")
-                messagebox.showerror("Microphone Test", "Microphone test failed. Please check your audio device.")
+                if error_reason == "device_busy":
+                    self.test_mic_button.configure(text="🔒 Device Busy")
+                    messagebox.showwarning("Microphone Busy", "Microphone is currently in use by another application (like Teams, Zoom, etc.). Please close the other application or select a different audio device.")
+                else:
+                    self.test_mic_button.configure(text="❌ Test Failed")
+                    messagebox.showerror("Microphone Test", "Microphone test failed. Please check your audio device.")
                 self.window.after(3000, lambda: self._reset_mic_test_button())
                 
         except Exception as e:
@@ -902,7 +916,14 @@ class SettingsWindow:
             self.config.litellm.key_alias = self.key_alias_var.get().strip()
             
             self.config.app.hotkey = self.hotkey_var.get()
-            self.config.app.audio_device = self.audio_device_var.get()
+            
+            # Handle audio device - convert "default (device name)" back to "default"
+            audio_device_selection = self.audio_device_var.get()
+            if audio_device_selection.startswith("default (") and audio_device_selection.endswith(")"):
+                self.config.app.audio_device = "default"
+            else:
+                self.config.app.audio_device = audio_device_selection
+                
             self.config.app.sample_rate = int(self.sample_rate_var.get())
             
             self.config.ui.theme = self.theme_var.get()
@@ -911,7 +932,14 @@ class SettingsWindow:
             # Save configuration
             self.config_manager.save_config(self.config)
             
-            messagebox.showinfo("Success", "Settings saved successfully!")
+            # CRITICAL FIX: Update the audio recorder with new settings
+            if self.audio_recorder:
+                self.logger.info(f"Updating audio recorder with new device: {self.config.app.audio_device}")
+                self.audio_recorder.device = self.config.app.audio_device if self.config.app.audio_device != "default" else None
+                self.audio_recorder.sample_rate = self.config.app.sample_rate
+                self.logger.info("Audio recorder settings updated successfully")
+            
+            messagebox.showinfo("Success", "Settings saved successfully! New microphone settings are now active.")
             self._update_diagnostics_status()
             
         except Exception as e:
