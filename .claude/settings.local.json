@@ -9,7 +9,12 @@
       "Bash(taskkill:*)",
       "Read(C:\\Users\\6113618\\.windvoice\\logs/**)",
       "Bash(timeout:*)",
-      "Bash(del test_status_dialog.py test_robust_simple.py)"
+      "Bash(del test_status_dialog.py test_robust_simple.py)",
+      "Bash(dir)",
+      "Bash(del \"C:\\Users\\6113618\\OneDrive - Thomson Reuters Incorporated\\Documents\\GitHub\\WindVoice-Windows\\docs\\TESTING.md\")",
+      "Bash(git rm:*)",
+      "Bash(del test_microphone_list.py)",
+      "Bash(del test_robust_simple.py)"
     ],
     "deny": [],
     "ask": []

@@ -6,7 +6,7 @@ import asyncio
 from pathlib import Path
 from typing import Optional, Tuple
 from dataclasses import dataclass
-from ..core.exceptions import AudioError
+from ..core.exceptions import AudioError, AudioDeviceBusyError
 from ..utils.audio_validation import AudioValidator, AudioQualityMetrics
 from ..utils.logging import get_logger, WindVoiceLogger
 
@@ -65,14 +65,21 @@ class AudioRecorder:
             self.logger.debug("Querying available audio devices...")
             devices = sd.query_devices()
             input_devices = []
+            seen_device_names = set()
+            
             for idx, device in enumerate(devices):
                 if device['max_input_channels'] > 0:
-                    input_devices.append({
-                        'index': idx,
-                        'name': device['name'],
-                        'channels': device['max_input_channels'],
-                        'sample_rate': device['default_samplerate']
-                    })
+                    device_name = device['name'].strip()
+                    
+                    # Skip duplicates based on device name
+                    if device_name not in seen_device_names:
+                        seen_device_names.add(device_name)
+                        input_devices.append({
+                            'index': idx,
+                            'name': device_name,
+                            'channels': device['max_input_channels'],
+                            'sample_rate': device['default_samplerate']
+                        })
             
             WindVoiceLogger.log_audio_workflow_step(
                 self.logger,
@@ -87,7 +94,85 @@ class AudioRecorder:
             self.logger.error(f"Failed to query audio devices: {e}")
             raise AudioError(f"Failed to query audio devices: {e}")
     
-    def test_device(self, device_index: Optional[int] = None) -> bool:
+    def get_default_input_device(self) -> Optional[dict]:
+        """Get the system's default input device information"""
+        try:
+            default_device = sd.query_devices(kind='input')
+            if default_device and default_device['max_input_channels'] > 0:
+                return {
+                    'index': default_device['index'] if 'index' in default_device else None,
+                    'name': default_device['name'].strip(),
+                    'channels': default_device['max_input_channels'],
+                    'sample_rate': default_device['default_samplerate']
+                }
+            return None
+        except Exception as e:
+            self.logger.error(f"Failed to get default input device: {e}")
+            return None
+    
+    def _extract_device_index(self, device_name: str) -> Optional[int]:
+        """Extract device index from device name string"""
+        if not device_name or device_name == "default":
+            return None
+        
+        # Extract index from format like "Device Name (ID: 123)"
+        if "(ID: " in device_name and ")" in device_name:
+            try:
+                start = device_name.find("(ID: ") + 5
+                end = device_name.find(")", start)
+                index_str = device_name[start:end]
+                return int(index_str)
+            except (ValueError, IndexError):
+                pass
+        
+        return None
+    
+    def is_device_available_for_exclusive_use(self, device_index: Optional[int] = None) -> Tuple[bool, str]:
+        """Check if device is available for exclusive use (not busy with other apps)"""
+        self.logger.info(f"Checking if device is available for exclusive use (index: {device_index})")
+        
+        try:
+            # Try to open the device in exclusive mode first
+            import sounddevice as sd
+            
+            # Test with a very short recording to see if device is truly available
+            test_duration = 0.05  # 50ms test - very short to minimize disruption
+            
+            # Try to record with exclusive access
+            test_data = sd.rec(
+                int(test_duration * self.sample_rate),
+                samplerate=self.sample_rate,
+                channels=self.channels,
+                device=device_index,
+                dtype='float32'
+            )
+            sd.wait()
+            
+            # If we got here, device is available
+            self.logger.info("✅ Device is available for exclusive use")
+            return True, "available"
+            
+        except Exception as e:
+            error_msg = str(e).lower()
+            self.logger.warning(f"⚠️  Device availability check failed: {e}")
+            
+            # Check for specific busy/in-use indicators
+            if any(indicator in error_msg for indicator in [
+                "device unavailable", "device busy", "access denied", 
+                "another application", "already in use", "sharing violation",
+                "resource busy", "device in use"
+            ]):
+                return False, "device_busy"
+            elif any(indicator in error_msg for indicator in [
+                "invalid device", "no input device", "no matching device", "paerrorcode -9996"
+            ]):
+                return False, "device_not_found"
+            else:
+                # Assume device is busy if we can't access it for unknown reasons
+                return False, "device_busy"
+    
+    def test_device(self, device_index: Optional[int] = None) -> Tuple[bool, str]:
+        """Test audio device and return success status with error reason"""
         self.logger.info(f"Testing microphone device (index: {device_index})")
         try:
             test_duration = 0.1  # 100ms test
@@ -108,10 +193,25 @@ class AudioRecorder:
             rms = np.sqrt(np.mean(test_data**2))
             
             self.logger.info(f"✅ Microphone test successful - max_amplitude: {max_amplitude:.6f}, rms: {rms:.6f}")
-            return True
+            return True, "success"
         except Exception as e:
+            error_msg = str(e).lower()
             self.logger.error(f"❌ Microphone test failed: {e}")
-            return False
+            
+            # Detect specific error types
+            if "device unavailable" in error_msg or "device busy" in error_msg or "access denied" in error_msg:
+                return False, "device_busy"
+            elif "no input device matching" in error_msg and self.device and "(" in str(self.device) and "ID:" in str(self.device):
+                # This error often occurs when device is busy/in use by another app (Teams, Zoom, etc.)
+                return False, "device_busy"
+            elif "no matching device" in error_msg:
+                return False, "device_busy"  # Often indicates device is in use
+            elif "paerrorcode -9992" in error_msg or "stream callback" in error_msg:
+                return False, "device_busy"  # Device is in use by another application
+            elif ("invalid device" in error_msg and "paerrorcode -9996" in error_msg):
+                return False, "device_not_found"
+            else:
+                return False, "unknown_error"
     
     def start_recording(self):
         WindVoiceLogger.log_audio_workflow_step(
@@ -141,10 +241,20 @@ class AudioRecorder:
                 }
             )
             
-            # Test device first
-            self.logger.debug(f"Testing audio device before recording...")
-            if not self.test_device(self.device):
-                raise AudioError(f"Audio device test failed for device: {self.device}")
+            # Check if device is available for exclusive use BEFORE attempting recording
+            self.logger.debug(f"Checking device availability before recording...")
+            device_index = self._extract_device_index(self.device) if isinstance(self.device, str) else self.device
+            
+            is_available, availability_reason = self.is_device_available_for_exclusive_use(device_index)
+            if not is_available:
+                if availability_reason == "device_busy":
+                    self.logger.error(f"🔒 Device is busy/in use by another application: {self.device}")
+                    raise AudioDeviceBusyError(f"Audio device is busy or in use by another application: {self.device}")
+                else:
+                    self.logger.error(f"❌ Device not available: {availability_reason}")
+                    raise AudioError(f"Audio device not available: {self.device} ({availability_reason})")
+            
+            self.logger.info(f"✅ Device is available for recording: {self.device}")
             
             # CRITICAL FIX: Clear any previous audio data to prevent caching bug
             self.audio_data = None
@@ -154,7 +264,7 @@ class AudioRecorder:
                 buffer_size,
                 samplerate=self.sample_rate,
                 channels=self.channels,
-                device=self.device,
+                device=device_index,
                 dtype='float32'
             )
             

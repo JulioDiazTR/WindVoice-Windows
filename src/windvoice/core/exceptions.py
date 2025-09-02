@@ -10,6 +10,11 @@ class AudioError(WindVoiceError):
     pass
 
 
+class AudioDeviceBusyError(AudioError):
+    """Audio device is busy/in use by another application"""
+    pass
+
+
 class TranscriptionError(WindVoiceError):
     pass
 

@@ -6,7 +6,7 @@ import tkinter as tk
 import customtkinter as ctk
 
 from .config import ConfigManager, WindVoiceConfig
-from .exceptions import WindVoiceError, ConfigurationError, AudioError, TranscriptionError
+from .exceptions import WindVoiceError, ConfigurationError, AudioError, AudioDeviceBusyError, TranscriptionError
 from ..services.audio import AudioRecorder, AudioValidation
 from ..services.transcription import TranscriptionService
 from ..services.injection import TextInjectionService
@@ -201,10 +201,14 @@ class WindVoiceApp:
                 if self.root_window:
                     try:
                         self.root_window.update()
-                    except tk.TclError:
+                    except tk.TclError as tcl_error:
                         # Window was destroyed
-                        self.logger.warning("Root window was destroyed - stopping app")
+                        self.logger.warning(f"Root window was destroyed - stopping app: {tcl_error}")
                         break
+                    except Exception as tk_error:
+                        # Other Tkinter errors - log but don't stop the app
+                        self.logger.error(f"Tkinter update error (non-fatal): {tk_error}")
+                        continue
                         
                 await asyncio.sleep(0.1)
                 loop_counter += 1
@@ -310,6 +314,21 @@ class WindVoiceApp:
                 {"state_updated": True, "level_monitor_started": True}
             )
             
+        except AudioDeviceBusyError as e:
+            self.logger.error(f"AudioDeviceBusyError in _start_recording: {e}")
+            self.recording = False
+            self.system_tray.set_recording_state(False)
+            if self.root_window:
+                self.root_window.after(0, self.status_dialog.show_error)
+            
+            # Show specific tray notification for device busy
+            self._show_device_busy_notification()
+            
+            WindVoiceLogger.log_audio_workflow_step(
+                self.logger,
+                "Recording_Start_DEVICE_BUSY",
+                {"error": str(e)}
+            )
         except AudioError as e:
             self.logger.error(f"AudioError in _start_recording: {e}")
             self.recording = False
@@ -460,7 +479,18 @@ class WindVoiceApp:
                 )
             
             # Handle transcription result
-            await self._handle_transcription_result(transcribed_text)
+            try:
+                self.logger.info("Starting transcription result handling...")
+                await self._handle_transcription_result(transcribed_text)
+                self.logger.info("Transcription result handling completed successfully")
+            except Exception as result_error:
+                self.logger.error(f"Error handling transcription result: {result_error}")
+                # Don't let this error propagate - just notify
+                self._show_smart_notification(
+                    "Transcription Error",
+                    f"Error handling transcription: '{transcribed_text[:50]}{'...' if len(transcribed_text) > 50 else ''}'. Text available but display failed.",
+                    is_error=True
+                )
             
         except AudioError as e:
             self.logger.error(f"AudioError in _stop_recording: {e}")
@@ -507,36 +537,60 @@ class WindVoiceApp:
         self.system_tray.set_recording_state(False)
     
     async def _handle_transcription_result(self, text: str):
+        self.logger.info(f"Handling transcription result for text: '{text[:30]}{'...' if len(text) > 30 else ''}'")
+        popup_created = False
+        
         try:
             # Try to inject text directly
+            self.logger.info("Attempting text injection...")
             success = self.text_injection_service.inject_text(text)
+            self.logger.info(f"Text injection result: {success}")
             
             if success:
                 # Show success animation and auto-close
+                self.logger.info("Injection succeeded - showing success animation")
                 if self.root_window:
                     self.root_window.after(0, self.status_dialog.show_success)
+                else:
+                    self.logger.warning("Root window not available for success animation")
             else:
                 # Hide status dialog and show smart popup for text copy
+                self.logger.info("Injection failed - showing popup dialog")
                 if self.root_window:
                     self.root_window.after(0, self.status_dialog.hide)
-                self.current_popup = show_smart_popup(
-                    text, 
-                    context="injection_failed",
-                    timeout=15
-                )
+                    # Schedule popup creation in the main thread
+                    self.root_window.after(100, lambda: self._show_smart_popup_safely(text, "injection_failed"))
+                    popup_created = True
+                else:
+                    self.logger.error("Cannot show popup: root window not available")
+                    # Fallback to notification only (no clipboard copy)
+                    self._show_smart_notification(
+                        "Text Ready",
+                        f"Transcription completed: '{text[:50]}{'...' if len(text) > 50 else ''}'. Use the popup to copy if needed.",
+                        is_error=False
+                    )
                 
         except Exception as e:
-            # Show error state briefly, then fallback to popup
-            if self.root_window:
-                self.root_window.after(0, self.status_dialog.show_error)
-                # Schedule popup after error display
-                self.root_window.after(1000, lambda: self._show_injection_error_popup(text))
-            else:
-                self.current_popup = show_smart_popup(
-                    text, 
-                    context="injection_error",
-                    timeout=20
+            self.logger.error(f"Exception in _handle_transcription_result: {e}")
+            # Only show error popup if we haven't already created one
+            if not popup_created and self.root_window:
+                try:
+                    self.root_window.after(0, self.status_dialog.show_error)
+                    # Schedule popup after error display
+                    self.root_window.after(1000, lambda: self._show_smart_popup_safely(text, "injection_error"))
+                    popup_created = True
+                except Exception as ui_error:
+                    self.logger.error(f"UI error handling failed: {ui_error}")
+            
+            # Final fallback only if no popup was created
+            if not popup_created:
+                self._show_smart_notification(
+                    "Error",
+                    f"Transcription completed but display failed: '{text[:30]}{'...' if len(text) > 30 else ''}'",
+                    is_error=True
                 )
+                
+        self.logger.info("_handle_transcription_result completed")
     
     def _show_injection_error_popup(self, text: str):
         """Helper method to show injection error popup"""
@@ -547,8 +601,29 @@ class WindVoiceApp:
             timeout=20
         )
     
+    def _show_smart_popup_safely(self, text: str, context: str):
+        """Safely show smart popup with error handling"""
+        try:
+            self.logger.info(f"Creating smart popup for text: '{text[:50]}{'...' if len(text) > 50 else ''}' with context: {context}")
+            self.current_popup = show_smart_popup(
+                text, 
+                context=context,
+                parent_window=self.root_window
+            )
+            self.logger.info("Smart popup created successfully")
+        except Exception as e:
+            self.logger.error(f"Failed to create smart popup: {e}")
+            # Fallback: just show notification (no automatic clipboard copy)
+            self._show_smart_notification(
+                "Popup Error", 
+                f"Could not open popup. Transcription: '{text[:50]}{'...' if len(text) > 50 else ''}'",
+                is_error=True
+            )
+    
     def _show_smart_notification(self, title: str, message: str, is_error: bool = False):
         """Show intelligent notifications with better formatting"""
+        self.logger.info(f"[NOTIFICATION] Attempting to show notification: '{title}' - '{message}' (error: {is_error})")
+        
         if self.system_tray:
             # Add emoji indicators
             if is_error:
@@ -559,8 +634,12 @@ class WindVoiceApp:
                 display_title = f"⚠️ {title}"
             else:
                 display_title = f"ℹ️ {title}"
-                
+            
+            self.logger.info(f"[NOTIFICATION] Calling system_tray.show_notification with: '{display_title}' - '{message}'")
             self.system_tray.show_notification(display_title, message)
+            self.logger.info(f"[NOTIFICATION] System tray notification call completed")
+        else:
+            self.logger.error(f"[NOTIFICATION] System tray is not available!")
             
         # Also log with appropriate level
         log_level = "ERROR" if is_error else "INFO"
@@ -573,6 +652,12 @@ class WindVoiceApp:
     def _show_info_notification(self, title: str, message: str):
         """Legacy method - redirects to smart notifications"""
         self._show_smart_notification(title, message, is_error=False)
+    
+    def _show_device_busy_notification(self):
+        """Show specific notification for busy audio device"""
+        title = "Microphone In Use"
+        message = "Your microphone is currently being used by another application (Teams, Zoom, etc.). Please close the other application or select a different audio device in Settings."
+        self._show_smart_notification(title, message, is_error=True)
     
     async def _show_settings(self):
         """Show the settings window"""

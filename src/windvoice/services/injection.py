@@ -179,8 +179,8 @@ class TextInjectionService:
         self.logger.info(f"[INJECTION] Active text field detected: {has_active_field}")
         
         if not has_active_field:
-            self.logger.warning("[INJECTION] No active text field detected - injection likely to fail")
-            # Still attempt injection in case detection failed
+            self.logger.warning("[INJECTION] No active text field detected - aborting injection to prevent unwanted typing")
+            return False
         
         try:
             success = False
@@ -225,7 +225,7 @@ class TextInjectionService:
                 self.logger.debug(f"[DETECTION] Original clipboard length: {len(original_clipboard) if original_clipboard else 0}")
             except Exception as e:
                 self.logger.debug(f"[DETECTION] Failed to get original clipboard: {e}")
-                pass
+                original_clipboard = ""
             
             # Give focus a moment to settle
             time.sleep(0.02)
@@ -251,10 +251,21 @@ class TextInjectionService:
             # Check if clipboard changed (indicating text was selected and copied)
             try:
                 new_clipboard = pyperclip.paste()
-                clipboard_changed = new_clipboard != original_clipboard
                 
                 self.logger.debug(f"[DETECTION] New clipboard length: {len(new_clipboard) if new_clipboard else 0}")
+                
+                # More conservative detection: only return True if clipboard actually changed
+                # AND the new content is different from original (not just empty vs empty)
+                clipboard_changed = new_clipboard != original_clipboard
+                has_meaningful_selection = (
+                    clipboard_changed and 
+                    new_clipboard is not None and 
+                    len(new_clipboard.strip()) > 0 and 
+                    new_clipboard.strip() != original_clipboard.strip()
+                )
+                
                 self.logger.debug(f"[DETECTION] Clipboard changed: {clipboard_changed}")
+                self.logger.debug(f"[DETECTION] Has meaningful selection: {has_meaningful_selection}")
                 
                 # Restore original clipboard to avoid disrupting user's workflow
                 try:
@@ -262,8 +273,8 @@ class TextInjectionService:
                 except Exception as e:
                     self.logger.debug(f"[DETECTION] Failed to restore clipboard: {e}")
                 
-                # Additional heuristic: if we copied something, there's likely a text field
-                has_text_field = clipboard_changed or (new_clipboard and len(new_clipboard.strip()) > 0)
+                # Conservative approach: only detect active field if we actually selected something meaningful
+                has_text_field = has_meaningful_selection
                 
                 self.logger.info(f"[DETECTION] Active text field detected: {has_text_field}")
                 return has_text_field

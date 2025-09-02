@@ -5,10 +5,12 @@ import threading
 import asyncio
 import time
 from ..core.exceptions import WindVoiceError
+from ..utils.logging import get_logger
 
 
 class SystemTrayService:
     def __init__(self, on_settings: Optional[Callable] = None, on_quit: Optional[Callable] = None):
+        self.logger = get_logger("system_tray")
         self.on_settings = on_settings
         self.on_quit = on_quit
         self.icon: Optional[pystray.Icon] = None
@@ -195,11 +197,18 @@ class SystemTrayService:
             self.animation_timer = None
 
     def show_notification(self, title: str, message: str):
+        self.logger.info(f"[TRAY] show_notification called: '{title}' - '{message}'")
         if self.icon:
             try:
+                self.logger.info(f"[TRAY] Calling icon.notify with message='{message}', title='{title}'")
                 self.icon.notify(message, title)
-            except Exception:
+                self.logger.info(f"[TRAY] icon.notify completed successfully")
+            except Exception as e:
+                self.logger.error(f"[TRAY] icon.notify failed: {e}")
                 print(f"{title}: {message}")
+        else:
+            self.logger.error(f"[TRAY] No system tray icon available!")
+            print(f"{title}: {message}")
 
     def is_running(self) -> bool:
         return self.icon is not None and hasattr(self, 'tray_thread') and self.tray_thread.is_alive()

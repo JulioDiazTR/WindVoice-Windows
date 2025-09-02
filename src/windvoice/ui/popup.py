@@ -7,7 +7,6 @@ Smart transcription popup with keyboard shortcuts and auto-positioning.
 import customtkinter as ctk
 import tkinter as tk
 from tkinter import messagebox
-import threading
 import time
 from typing import Optional, Callable
 import pyperclip
@@ -16,18 +15,18 @@ from ..services.injection import TextInjectionService
 
 
 class TranscriptionPopup:
-    def __init__(self, text: str, on_close: Optional[Callable] = None):
+    def __init__(self, text: str, on_close: Optional[Callable] = None, parent_window=None):
         self.text = text
         self.on_close = on_close
+        self.parent_window = parent_window
         self.text_injection_service = TextInjectionService()
         
         # Window setup
         self.window: Optional[ctk.CTkToplevel] = None
         self.is_visible = False
-        self.auto_dismiss_timer: Optional[threading.Timer] = None
         
-    def show(self, timeout_seconds: int = 10):
-        """Show the popup with optional auto-dismiss timeout"""
+    def show(self):
+        """Show the popup - user controls when to close"""
         if self.window and self.is_visible:
             self.window.lift()
             self.window.focus_force()
@@ -37,31 +36,54 @@ class TranscriptionPopup:
         self._position_window()
         self.is_visible = True
         
-        # Set up auto-dismiss timer
-        if timeout_seconds > 0:
-            self.auto_dismiss_timer = threading.Timer(timeout_seconds, self._auto_dismiss)
-            self.auto_dismiss_timer.start()
-        
     def hide(self):
         """Hide the popup"""
-        if self.auto_dismiss_timer:
-            self.auto_dismiss_timer.cancel()
+        try:
+            if self.window:
+                try:
+                    self.window.destroy()
+                except Exception as destroy_error:
+                    print(f"Warning: Error destroying popup window: {destroy_error}")
+                finally:
+                    self.window = None
+                    
+            self.is_visible = False
             
-        if self.window:
-            self.window.destroy()
-            self.window = None
-            
-        self.is_visible = False
-        
-        if self.on_close:
-            self.on_close()
+            if self.on_close:
+                try:
+                    self.on_close()
+                except Exception as callback_error:
+                    print(f"Warning: Error in popup close callback: {callback_error}")
+        except Exception as e:
+            print(f"Error in popup hide(): {e}")
+            # Ensure visibility flag is reset even if there are errors
+            self.is_visible = False
     
     def _create_window(self):
         """Create the popup window"""
-        self.window = ctk.CTkToplevel()
-        self.window.title("WindVoice - Transcription")
-        self.window.geometry("500x300")
-        self.window.resizable(True, True)
+        try:
+            # Use parent window if provided, otherwise try to find the root
+            if self.parent_window:
+                self.window = ctk.CTkToplevel(self.parent_window)
+            else:
+                # Try to get the main Tkinter root window if available
+                try:
+                    import tkinter as tk
+                    root = tk._default_root
+                    if root is not None:
+                        self.window = ctk.CTkToplevel(root)
+                    else:
+                        self.window = ctk.CTkToplevel()
+                except:
+                    self.window = ctk.CTkToplevel()
+                
+            self.window.title("WindVoice - Transcription")
+            self.window.geometry("550x350")
+            self.window.resizable(True, True)
+            self.window.minsize(400, 250)
+        except Exception as e:
+            print(f"Error creating popup window: {e}")
+            raise
         
         # Make window stay on top
         self.window.attributes("-topmost", True)
@@ -70,10 +92,9 @@ class TranscriptionPopup:
         self.window.protocol("WM_DELETE_WINDOW", self.hide)
         
         # Bind keyboard shortcuts
-        self.window.bind("<Return>", self._on_paste_and_close)
+        self.window.bind("<Return>", lambda e: self.hide())
         self.window.bind("<Control-c>", self._on_copy)
         self.window.bind("<Escape>", lambda e: self.hide())
-        self.window.bind("<Control-Return>", self._on_inject_text)
         
         # Create widgets
         self._create_widgets()
@@ -104,52 +125,48 @@ class TranscriptionPopup:
         )
         self.text_widget.pack(fill="both", expand=True, pady=(0, 15))
         
-        # Insert and select all text
+        # Insert text and select all
         self.text_widget.insert("1.0", self.text)
-        self.text_widget.select_range("1.0", "end")
+        # Use CTkTextbox compatible selection method
+        try:
+            # Try the tkinter standard method first
+            self.text_widget.tag_add("sel", "1.0", "end")
+            self.text_widget.mark_set("insert", "1.0")
+        except:
+            # If that fails, just focus without selection
+            pass
         self.text_widget.focus()
         
-        # Button frame
-        button_frame = ctk.CTkFrame(main_frame)
-        button_frame.pack(fill="x", pady=(0, 10))
+        # Button frame with more height
+        button_frame = ctk.CTkFrame(main_frame, height=80)
+        button_frame.pack(fill="x", pady=(10, 10))
+        button_frame.pack_propagate(False)  # Maintain fixed height
         
-        # Action buttons
+        # Action buttons - simplified interface with proper sizing
         copy_button = ctk.CTkButton(
             button_frame,
             text="📋 Copy (Ctrl+C)",
             command=self._copy_text,
-            width=120
+            width=180,
+            height=40,
+            font=ctk.CTkFont(size=14)
         )
-        copy_button.pack(side="left", padx=(10, 5), pady=10)
-        
-        paste_button = ctk.CTkButton(
-            button_frame,
-            text="📝 Paste & Close (Enter)",
-            command=self._paste_and_close,
-            width=150
-        )
-        paste_button.pack(side="left", padx=5, pady=10)
-        
-        inject_button = ctk.CTkButton(
-            button_frame,
-            text="💉 Inject Text (Ctrl+Enter)",
-            command=self._inject_text,
-            width=150
-        )
-        inject_button.pack(side="left", padx=5, pady=10)
+        copy_button.pack(side="left", padx=(20, 10), pady=20)
         
         close_button = ctk.CTkButton(
             button_frame,
-            text="❌ Close (Esc)",
+            text="✅ Close (Enter/Esc)",
             command=self.hide,
-            width=100
+            width=180,
+            height=40,
+            font=ctk.CTkFont(size=14)
         )
-        close_button.pack(side="right", padx=(5, 10), pady=10)
+        close_button.pack(side="right", padx=(10, 20), pady=20)
         
         # Shortcuts info
         info_label = ctk.CTkLabel(
             main_frame,
-            text="💡 Shortcuts: Enter=Paste & Close | Ctrl+C=Copy | Ctrl+Enter=Inject | Esc=Close",
+            text="💡 Shortcuts: Ctrl+C=Copy to Clipboard | Enter/Esc=Close",
             font=ctk.CTkFont(size=10),
             text_color=("gray60", "gray40")
         )
@@ -214,107 +231,66 @@ class TranscriptionPopup:
         except Exception as e:
             messagebox.showerror("Copy Error", f"Failed to copy text: {e}")
             
-    def _paste_and_close(self):
-        """Copy text to clipboard and close popup"""
-        try:
-            current_text = self.text_widget.get("1.0", "end-1c")
-            pyperclip.copy(current_text)
-            
-            # Use system paste shortcut to paste into active application
-            import pyautogui
-            time.sleep(0.1)  # Brief delay
-            self.hide()  # Hide popup first
-            time.sleep(0.1)  # Brief delay for window focus to return
-            pyautogui.hotkey('ctrl', 'v')
-            
-        except Exception as e:
-            messagebox.showerror("Paste Error", f"Failed to paste text: {e}")
-            
-    def _inject_text(self):
-        """Directly inject text into active application"""
-        try:
-            current_text = self.text_widget.get("1.0", "end-1c")
-            
-            # Hide popup first to restore focus to target application
-            self.hide()
-            time.sleep(0.1)  # Brief delay for focus change
-            
-            # Inject text directly
-            success = self.text_injection_service.inject_text(current_text)
-            
-            if not success:
-                # If injection fails, show error and reopen popup
-                messagebox.showerror(
-                    "Injection Failed", 
-                    "Failed to inject text. Text has been copied to clipboard instead."
-                )
-                pyperclip.copy(current_text)
-                
-        except Exception as e:
-            messagebox.showerror("Injection Error", f"Failed to inject text: {e}")
-            # Fallback to clipboard
-            pyperclip.copy(self.text_widget.get("1.0", "end-1c"))
             
     def _on_copy(self, event):
         """Handle Ctrl+C keyboard shortcut"""
         self._copy_text()
         return "break"  # Prevent default text widget copy behavior
         
-    def _on_paste_and_close(self, event):
-        """Handle Enter keyboard shortcut"""
-        self._paste_and_close()
-        return "break"
         
-    def _on_inject_text(self, event):
-        """Handle Ctrl+Enter keyboard shortcut"""
-        self._inject_text()
-        return "break"
-        
-    def _auto_dismiss(self):
-        """Auto-dismiss the popup after timeout"""
-        if self.is_visible:
-            print("Auto-dismissing transcription popup after timeout")
-            self.hide()
 
 
 class SmartTranscriptionPopup(TranscriptionPopup):
     """Enhanced popup with smart positioning and context awareness"""
     
-    def __init__(self, text: str, context: Optional[str] = None, on_close: Optional[Callable] = None):
-        super().__init__(text, on_close)
+    def __init__(self, text: str, context: Optional[str] = None, on_close: Optional[Callable] = None, parent_window=None):
+        super().__init__(text, on_close, parent_window)
         self.context = context
         
-    def show_with_focus(self, timeout_seconds: int = 15):
+    def show_with_focus(self):
         """Show popup with smart focus handling"""
-        self.show(timeout_seconds)
+        self.show()
         
-        # Try to restore focus to the original application after a delay
-        if self.context:
-            threading.Timer(0.5, self._restore_focus).start()
-            
-    def _restore_focus(self):
-        """Restore focus to the previously active window"""
+        # Simple focus handling without threading
+        if self.window and self.context:
+            try:
+                # Schedule focus adjustment in the main UI thread
+                self.window.after(500, self._restore_focus_safe)
+            except Exception as e:
+                print(f"Warning: Could not schedule focus restoration: {e}")
+                
+    def _restore_focus_safe(self):
+        """Safely restore focus in the main UI thread"""
         try:
-            # This could be enhanced with window management APIs
-            # For now, just ensure our popup stays accessible
             if self.window and self.is_visible:
                 self.window.attributes("-topmost", False)
                 self.window.attributes("-topmost", True)
-                
         except Exception as e:
             print(f"Warning: Could not restore focus context: {e}")
 
 
 # Factory functions for creating popups
-def show_transcription_popup(text: str, timeout: int = 10) -> TranscriptionPopup:
+def show_transcription_popup(text: str, parent_window=None) -> TranscriptionPopup:
     """Create and show a basic transcription popup"""
-    popup = TranscriptionPopup(text)
-    popup.show(timeout)
+    popup = TranscriptionPopup(text, parent_window=parent_window)
+    popup.show()
     return popup
 
 
-def show_smart_popup(text: str, context: Optional[str] = None, timeout: int = 15) -> SmartTranscriptionPopup:
+def show_smart_popup(text: str, context: Optional[str] = None, timeout: int = 15, parent_window=None) -> SmartTranscriptionPopup:
     """Create and show a smart transcription popup with context awareness"""
-    popup = SmartTranscriptionPopup(text, context)
-    popup.show_with_focus(timeout)
-    return popup
+    try:
+        popup = SmartTranscriptionPopup(text, context, parent_window=parent_window)
+        popup.show_with_focus()
+        return popup
+    except Exception as e:
+        print(f"Error creating smart popup: {e}")
+        # Fallback to basic popup
+        try:
+            popup = TranscriptionPopup(text, parent_window=parent_window)
+            popup.show()
+            return popup
+        except Exception as fallback_e:
+            print(f"Error creating fallback popup: {fallback_e}")
+            # Re-raise the original error
+            raise e
