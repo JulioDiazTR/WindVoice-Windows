@@ -102,8 +102,8 @@ class SettingsWindow:
         self.window.geometry("700x800")
         self.window.resizable(True, True)
         
-        # Configure theme
-        ctk.set_appearance_mode("dark")
+        # Configure theme from config
+        ctk.set_appearance_mode(self.config.ui.theme)
         ctk.set_default_color_theme("blue")
         
         # Center the window
@@ -295,7 +295,8 @@ class SettingsWindow:
             ui_frame,
             variable=self.theme_var,
             values=["dark", "light"],
-            width=200
+            width=200,
+            command=self._on_theme_change
         )
         self.theme_combo.pack(pady=(5, 10), padx=20, anchor="w")
         
@@ -939,6 +940,14 @@ class SettingsWindow:
             except Exception as e:
                 messagebox.showerror("Reset Error", f"Failed to reset settings: {e}")
                 
+    def _on_theme_change(self, value):
+        """Handle theme change immediately"""
+        try:
+            self.logger.info(f"Theme changed to: {value}")
+            ctk.set_appearance_mode(value)
+        except Exception as e:
+            self.logger.error(f"Error changing theme: {e}")
+            
     def _on_close(self):
         """Handle window close event"""
         self.hide()

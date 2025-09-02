@@ -61,6 +61,9 @@ class WindVoiceApp:
             # Load configuration
             self.config = self.config_manager.load_config()
             
+            # Configure theme based on loaded config
+            self._apply_theme()
+            
             # Check if this is first run (no configuration)
             if not self.config_manager.validate_config():
                 status = self.config_manager.get_config_status()
@@ -88,12 +91,25 @@ class WindVoiceApp:
             self.root_window = ctk.CTk()
             self.root_window.withdraw()  # Hide the window
             
-            # Configure CustomTkinter
-            ctk.set_appearance_mode("dark")
+            # Configure default color theme only (appearance mode will be set after config load)
             ctk.set_default_color_theme("blue")
             
         except Exception as e:
             raise WindVoiceError(f"Failed to initialize UI root: {e}")
+    
+    def _apply_theme(self):
+        """Apply the theme from configuration"""
+        try:
+            if self.config and self.config.ui:
+                ctk.set_appearance_mode(self.config.ui.theme)
+                self.logger.info(f"Theme set to: {self.config.ui.theme}")
+            else:
+                # Fallback to dark theme
+                ctk.set_appearance_mode("dark")
+                self.logger.warning("No config found, using default dark theme")
+        except Exception as e:
+            self.logger.error(f"Error applying theme: {e}")
+            ctk.set_appearance_mode("dark")
     
     async def _initialize_services(self):
         self.logger.info("Starting service initialization...")
