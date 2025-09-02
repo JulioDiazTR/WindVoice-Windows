@@ -23,6 +23,5 @@ tomli-w>=1.0.0
 # Image Processing for System Tray Icons
 Pillow>=10.0.0
 
-# Windows-specific dependencies (will be handled by pip on Windows)
-# pywin32 - Automatically installed on Windows if needed
-# win32gui - For cursor positioning in popups
+# Windows-specific dependencies
+pywin32>=306  # Windows API access for better text field detection
