@@ -134,57 +134,30 @@ WindVoice-Windows/
 │   │       ├── windows.py                # Windows-specific helpers
 │   │       ├── audio_validation.py       # Audio quality and silence detection
 │   │       └── logging.py                # Logging configuration
-├── tests/
-│   ├── __init__.py
-│   ├── conftest.py                       # Pytest configuration and fixtures
-│   ├── unit/
-│   │   ├── __init__.py
-│   │   ├── test_audio_recorder.py        # Audio recording service tests
-│   │   ├── test_text_injector.py         # Text injection tests
-│   │   ├── test_hotkey_manager.py        # Hotkey functionality tests
-│   │   ├── test_state_manager.py         # State management tests
-│   │   └── test_transcription.py         # LiteLLM integration tests
-│   ├── integration/
-│   │   ├── __init__.py
-│   │   ├── test_full_workflow.py         # Complete recording → injection flow
-│   │   ├── test_hotkey_workflow.py       # Global hotkey scenarios
-│   │   └── test_ui_integration.py        # UI component integration
-│   ├── fixtures/
-│   │   ├── audio_samples/                # Test WAV files
-│   │   │   ├── short_speech.wav          # 5 seconds clear speech
-│   │   │   ├── long_speech.wav           # 30 seconds paragraph
-│   │   │   └── silence.wav               # Silent audio for edge cases
-│   │   └── mock_responses/               # Canned LiteLLM responses
-│   │       └── transcription_responses.json
-│   └── performance/
-│       ├── __init__.py
-│       ├── test_memory_usage.py          # Memory leak detection
-│       └── test_audio_latency.py         # Recording performance metrics
-├── config/
-│   ├── settings.toml                     # Default application settings
-│   └── logging.toml                      # Logging configuration
-├── assets/
-│   ├── icons/
-│   │   ├── windvoice.ico                 # Windows icon
-│   │   └── tray_icon.png                 # System tray icon
-│   └── sounds/                           # Audio feedback files
-│       ├── recording_start.wav           # Recording start sound
-│       └── recording_stop.wav            # Recording stop sound
+# Test structure (planned for Sprint 3):
+# ├── tests/
+# │   ├── unit/                           # Unit tests for individual components  
+# │   ├── integration/                    # Integration workflow tests
+# │   ├── performance/                    # Performance and memory tests
+# │   └── fixtures/                       # Test data and mock resources
+# Additional directories (planned):
+# ├── config/                           # Configuration templates
+# ├── assets/                           # Icons and audio files
+# └── dist/                             # Built executables
 ├── docs/
 │   ├── README.md                         # Project overview and quick start
 │   ├── DEVELOPMENT.md                    # Development setup guide
 │   └── ARCHITECTURE.md                   # Technical architecture details
-├── scripts/
-│   ├── build.py                          # PyInstaller build script
-│   ├── test.py                          # Test runner with coverage
-│   └── dev.py                           # Development utilities
 ├── requirements.txt                      # Production dependencies
-├── requirements-dev.txt                  # Development dependencies  
-├── pyproject.toml                        # Modern Python project configuration
 ├── main.py                              # Application entry point
-├── config.example.toml                  # Configuration template with LiteLLM settings
-├── .env.example                         # Environment template (deprecated - use config.toml)
+├── run_windvoice.py                     # Alternative entry point
 └── .gitignore                           # Git ignore rules
+
+# Future additions (planned for Sprint 3):
+# ├── scripts/                           # Build and utility scripts
+# ├── requirements-dev.txt               # Development dependencies
+# ├── pyproject.toml                     # Modern Python project configuration
+# └── config.example.toml                # Configuration template
 ```
 
 ---
