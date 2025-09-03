@@ -184,10 +184,22 @@ class WindVoiceApp:
                 self.logger.info("Showing startup notification...")
                 self.system_tray.show_notification(
                     "WindVoice Started",
-                    f"Press {self.config.app.hotkey} to start recording"
+                    f"Voice dictation is now running in the background. Press {self.config.app.hotkey} to start recording from any application."
                 )
+                
+                # Show a secondary notification after a brief delay to confirm readiness
+                async def show_ready_notification():
+                    await asyncio.sleep(2.0)  # Wait 2 seconds
+                    if self.running and self.system_tray:
+                        self.system_tray.show_notification(
+                            "WindVoice Ready",
+                            "Voice dictation is ready and listening for hotkey activation."
+                        )
+                
+                # Schedule the ready notification
+                asyncio.create_task(show_ready_notification())
             
-            print(f"WindVoice is running. Press {self.config.app.hotkey} to record.")
+            print(f"WindVoice is now running in the background. Press {self.config.app.hotkey} to start recording from any application.")
             self.logger.info("WindVoice startup completed - entering main loop")
             
             # Keep the application running and process Tkinter events
@@ -335,6 +347,10 @@ class WindVoiceApp:
             self.system_tray.set_recording_state(False)
             if self.root_window:
                 self.root_window.after(0, self.status_dialog.show_error)
+            
+            # Show specific tray notification for audio error
+            self._show_audio_error_notification(str(e))
+            
             WindVoiceLogger.log_audio_workflow_step(
                 self.logger,
                 "Recording_Start_AUDIO_ERROR",
@@ -346,6 +362,10 @@ class WindVoiceApp:
             self.system_tray.set_recording_state(False)
             if self.root_window:
                 self.root_window.after(0, self.status_dialog.show_error)
+            
+            # Show general error notification
+            self._show_recording_error_notification(str(e))
+            
             WindVoiceLogger.log_audio_workflow_step(
                 self.logger,
                 "Recording_Start_GENERAL_ERROR",
@@ -421,6 +441,10 @@ class WindVoiceApp:
                 self.logger.info(f"No voice detected - showing error state")
                 if self.root_window:
                     self.root_window.after(0, self.status_dialog.show_error)
+                
+                # Show tray notification for no voice detected
+                self._show_no_voice_notification()
+                
                 # Clean up the invalid audio file
                 Path(audio_file_path).unlink(missing_ok=True)
                 WindVoiceLogger.log_audio_workflow_step(
@@ -461,6 +485,10 @@ class WindVoiceApp:
                 self.logger.warning(f"Transcription failed - keeping audio file for debugging")
                 if self.root_window:
                     self.root_window.after(0, self.status_dialog.show_error)
+                
+                # Show tray notification for failed transcription
+                self._show_transcription_failed_notification()
+                
                 # Don't delete the file so user can inspect it
                 print(f"Transcription failed - audio file kept at: {audio_file_path}")
                 WindVoiceLogger.log_audio_workflow_step(
@@ -497,6 +525,10 @@ class WindVoiceApp:
             await self._cleanup_recording_state()
             if self.root_window:
                 self.root_window.after(0, self.status_dialog.show_error)
+            
+            # Show tray notification for audio error
+            self._show_audio_error_notification(str(e))
+            
             WindVoiceLogger.log_audio_workflow_step(
                 self.logger,
                 "Recording_Stop_AUDIO_ERROR",
@@ -507,6 +539,10 @@ class WindVoiceApp:
             await self._cleanup_recording_state()
             if self.root_window:
                 self.root_window.after(0, self.status_dialog.show_error)
+            
+            # Show tray notification for transcription error
+            self._show_transcription_error_notification(str(e))
+            
             WindVoiceLogger.log_audio_workflow_step(
                 self.logger,
                 "Recording_Stop_TRANSCRIPTION_ERROR",
@@ -517,6 +553,10 @@ class WindVoiceApp:
             await self._cleanup_recording_state()
             if self.root_window:
                 self.root_window.after(0, self.status_dialog.show_error)
+            
+            # Show tray notification for general error
+            self._show_recording_error_notification(str(e))
+            
             WindVoiceLogger.log_audio_workflow_step(
                 self.logger,
                 "Recording_Stop_GENERAL_ERROR",
@@ -657,6 +697,48 @@ class WindVoiceApp:
         """Show specific notification for busy audio device"""
         title = "Microphone In Use"
         message = "Your microphone is currently being used by another application (Teams, Zoom, etc.). Please close the other application or select a different audio device in Settings."
+        self._show_smart_notification(title, message, is_error=True)
+    
+    def _show_audio_error_notification(self, error_message: str):
+        """Show specific notification for audio errors"""
+        title = "Audio Error"
+        if "device" in error_message.lower() or "microphone" in error_message.lower():
+            message = "There was a problem with your microphone. Please check your audio device settings or try selecting a different microphone in Settings."
+        elif "permission" in error_message.lower() or "access" in error_message.lower():
+            message = "WindVoice doesn't have permission to access your microphone. Please check your Windows privacy settings for microphone access."
+        else:
+            message = f"Audio recording failed: {error_message[:100]}{'...' if len(error_message) > 100 else ''}"
+        self._show_smart_notification(title, message, is_error=True)
+    
+    def _show_transcription_error_notification(self, error_message: str):
+        """Show specific notification for transcription errors"""
+        title = "Transcription Error"
+        if "api" in error_message.lower() or "key" in error_message.lower():
+            message = "Unable to transcribe audio due to API configuration issues. Please check your LiteLLM settings in the Settings window."
+        elif "network" in error_message.lower() or "connection" in error_message.lower():
+            message = "Network connection error during transcription. Please check your internet connection and try again."
+        elif "timeout" in error_message.lower():
+            message = "Transcription service timed out. Please try again with a shorter recording."
+        else:
+            message = f"Failed to transcribe your recording. Please try again or check Settings for configuration issues."
+        self._show_smart_notification(title, message, is_error=True)
+    
+    def _show_recording_error_notification(self, error_message: str):
+        """Show specific notification for general recording errors"""
+        title = "Recording Error"
+        message = f"An unexpected error occurred while recording. Please try again. If the problem persists, check Settings or restart the application."
+        self._show_smart_notification(title, message, is_error=True)
+    
+    def _show_no_voice_notification(self):
+        """Show specific notification when no voice is detected in recording"""
+        title = "No Voice Detected"
+        message = "Your recording appears to be silent or too quiet. Please try again and speak clearly into your microphone."
+        self._show_smart_notification(title, message, is_error=True)
+    
+    def _show_transcription_failed_notification(self):
+        """Show specific notification when transcription returns empty result"""
+        title = "Transcription Failed"
+        message = "Unable to transcribe your recording. The audio may be unclear or the transcription service may be unavailable. Please try again."
         self._show_smart_notification(title, message, is_error=True)
     
     async def _show_settings(self):

@@ -197,18 +197,21 @@ class SystemTrayService:
             self.animation_timer = None
 
     def show_notification(self, title: str, message: str):
+        """Show Windows system tray notification with proper formatting"""
         self.logger.info(f"[TRAY] show_notification called: '{title}' - '{message}'")
         if self.icon:
             try:
                 self.logger.info(f"[TRAY] Calling icon.notify with message='{message}', title='{title}'")
+                # Use the Windows notification system with proper formatting
                 self.icon.notify(message, title)
                 self.logger.info(f"[TRAY] icon.notify completed successfully")
             except Exception as e:
                 self.logger.error(f"[TRAY] icon.notify failed: {e}")
-                print(f"{title}: {message}")
+                # Fallback to console output
+                print(f"📢 {title}: {message}")
         else:
             self.logger.error(f"[TRAY] No system tray icon available!")
-            print(f"{title}: {message}")
+            print(f"📢 {title}: {message}")
 
     def is_running(self) -> bool:
         return self.icon is not None and hasattr(self, 'tray_thread') and self.tray_thread.is_alive()
