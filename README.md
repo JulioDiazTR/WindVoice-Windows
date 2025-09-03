@@ -7,6 +7,27 @@
 ![Python](https://img.shields.io/badge/python-3.11%2B-green)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 
+## Table of Contents
+
+- [Overview](#-overview)
+- [Features](#-key-features)
+- [Quick Start](#-quick-start)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Configuration](#configuration)
+- [Usage](#-usage)
+- [Architecture](#️-architecture)
+- [Project Structure](#-project-structure)
+- [Development](#-development)
+  - [Development Setup](#development-setup)
+  - [Running for Development](#running-for-development)
+  - [Contributing](#contributing)
+- [Performance](#-performance)
+- [Security](#-security)
+- [Troubleshooting](#️-troubleshooting)
+- [Current Status](#-current-status)
+- [License](#-license)
+
 ## 🎤 Overview
 
 WindVoice-Windows is a **100% Python** voice dictation application designed for Windows 10+ systems. It provides instant voice recording with global hotkey activation (`Ctrl+Shift+Space`) and smart text injection into any Windows application.
@@ -32,51 +53,69 @@ WindVoice-Windows is a **100% Python** voice dictation application designed for 
 
 ### Installation
 
+#### Option 1: Clone from Repository
+
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-org/WindVoice-Windows.git
+   git clone <repository-url>
    cd WindVoice-Windows
    ```
 
-2. **Setup virtual environment and install dependencies**
+2. **Create and activate virtual environment**
    ```bash
    python -m venv .venv
    .venv\Scripts\activate
+   ```
+
+3. **Install dependencies**
+   ```bash
    pip install -r requirements.txt
    ```
 
-3. **Configure LiteLLM credentials**
-   ```bash
-   # Configuration will be created at ~/.windvoice/config.toml
-   python main.py  # Will prompt for configuration on first run
-   ```
-
-4. **Run WindVoice**
+4. **Run the application**
    ```bash
    python main.py
    ```
 
+#### Option 2: Direct Download (Future)
+- Windows installer (`.msi`) - Coming in Sprint 3
+- Portable executable (`.exe`) - Coming in Sprint 3
+
 ### Configuration
 
-WindVoice stores configuration in `%USERPROFILE%\.windvoice\config.toml`:
+#### Initial Setup
 
-```toml
-[litellm]
-api_key = "sk-your-litellm-api-key"
-api_base = "https://your-litellm-proxy.com"
-key_alias = "your-username"
-model = "whisper-1"
+On first run, WindVoice will create a configuration file at `%USERPROFILE%\.windvoice\config.toml`. You'll need to configure your Thomson Reuters LiteLLM credentials either:
 
-[app]
-hotkey = "ctrl+shift+space"
-audio_device = "default"
-sample_rate = 44100
+1. **Through the Settings GUI** (recommended):
+   - Right-click the system tray icon → Settings
+   - Fill in your API credentials
 
-[ui]
-theme = "dark"
-window_position = "center"
-show_tray_notifications = true
-```
+2. **Edit the configuration file manually**:
+   ```toml
+   [litellm]
+   api_key = "sk-your-litellm-api-key"
+   api_base = "https://your-litellm-proxy.com"
+   key_alias = "your-username"
+   model = "whisper-1"
+
+   [app]
+   hotkey = "ctrl+shift+space"
+   audio_device = "default"
+   sample_rate = 44100
+
+   [ui]
+   theme = "dark"
+   window_position = "center"
+   show_tray_notifications = true
+   ```
+
+#### Required LiteLLM Credentials
+
+You'll need the following from your Thomson Reuters LiteLLM proxy:
+- **API Key**: Virtual API key (format: `sk-xxxxx`)
+- **API Base**: Proxy URL (format: `https://your-proxy.com`)
+- **Key Alias**: Your user identifier for usage tracking
 
 ## 🎯 Usage
 
@@ -180,28 +219,137 @@ WindVoice-Windows/
 
 ### Development Setup
 
-```bash
-# Clone and setup
-git clone <repo-url>
-cd WindVoice-Windows
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
+#### Prerequisites for Development
+- Python 3.11+ (required)
+- Windows 10+ (for Windows-specific dependencies)
+- Git for version control
+- Visual Studio Code (recommended IDE)
 
-# Run in development mode
+#### Setup Steps
+
+1. **Fork and clone the repository**
+   ```bash
+   git clone <your-fork-url>
+   cd WindVoice-Windows
+   ```
+
+2. **Create virtual environment**
+   ```bash
+   python -m venv .venv
+   .venv\Scripts\activate
+   ```
+
+3. **Install dependencies**
+   ```bash
+   pip install -r requirements.txt
+   # Development dependencies (when available)
+   # pip install -r requirements-dev.txt
+   ```
+
+### Running for Development
+
+#### Standard Development Mode
+```bash
+# Basic development run
 python main.py
+
+# Alternative entry point
+python run_windvoice.py
 ```
 
-### Running the Application
-
+#### Development with Debugging
 ```bash
-# Development mode
-python main.py
-
-# With debug logging
+# Enable debug logging
 set WINDVOICE_LOG_LEVEL=DEBUG
 python main.py
+
+# Run specific tests
+pytest tests/ -v
+
+# Run with coverage (when implemented)
+pytest tests/ --cov=src/windvoice
 ```
+
+#### Testing Components
+
+Test individual components during development:
+
+```python
+# Test audio recording
+python -c "
+from windvoice.services.audio import AudioRecorder
+recorder = AudioRecorder()
+devices = recorder.list_audio_devices()
+for i, device in enumerate(devices):
+    print(f'{i}: {device}')
+"
+
+# Test LiteLLM connection
+python -c "
+import asyncio
+from windvoice.core.config import ConfigManager
+from windvoice.services.transcription import TranscriptionService
+
+async def test():
+    config = ConfigManager().load_config()
+    service = TranscriptionService(config.litellm)
+    success, message = await service.test_connection()
+    print(f'Connection: {'✅' if success else '❌'} {message}')
+
+asyncio.run(test())
+"
+```
+
+### Contributing
+
+We welcome contributions! Here's how to get started:
+
+#### 1. Development Workflow
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Follow the coding standards outlined in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
+4. Write tests for new functionality
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+#### 2. Code Standards
+- **Type hints**: Always use type annotations
+- **Error handling**: Use custom exceptions from `windvoice.core.exceptions`
+- **Logging**: Use the structured logging system
+- **Tests**: Write unit and integration tests
+- **Documentation**: Update relevant documentation
+
+#### 3. Testing Requirements
+```bash
+# Run all tests (when implemented)
+pytest tests/
+
+# Run specific test categories
+pytest tests/unit/          # Unit tests only  
+pytest tests/integration/   # Integration tests only
+
+# Format code before committing
+black src/ tests/
+isort src/ tests/
+```
+
+#### 4. Areas for Contribution
+- **Testing**: Comprehensive test suite implementation
+- **Performance**: Memory and CPU optimization
+- **UI/UX**: Enhanced user interface features
+- **Audio**: Advanced audio processing features
+- **Documentation**: Tutorials and guides
+- **Build System**: PyInstaller configuration and Windows installer
+
+#### 5. Before Submitting
+- [ ] Code follows Python PEP 8 standards
+- [ ] All tests pass locally
+- [ ] Documentation updated
+- [ ] No sensitive data in commits
+- [ ] Windows compatibility verified
+
+For detailed development guidelines, see [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 ### Documentation
 
@@ -230,11 +378,17 @@ WindVoice is optimized for minimal resource usage:
 
 ## 🛠️ Troubleshooting
 
-### Common Issues
+### Common Issues and Solutions
 
-**Audio not recording:**
+#### 🎤 Audio Issues
+
+**Problem: Audio not recording**
+
+*Symptoms:* No response when pressing hotkey, "No voice detected" messages
+
+*Diagnostic:*
 ```bash
-# List audio devices
+# List available audio devices
 python -c "
 from windvoice.services.audio import AudioRecorder
 recorder = AudioRecorder()
@@ -244,7 +398,23 @@ for i, device in enumerate(devices):
 "
 ```
 
-**LiteLLM connection issues:**
+*Solutions:*
+- Check microphone permissions in Windows Settings → Privacy → Microphone
+- Update audio drivers
+- Try different audio devices in Settings
+- Run as administrator if using external audio interfaces
+
+**Problem: "Microphone is being used by another application"**
+- Close other applications using the microphone (video calls, recording software)
+- Restart WindVoice after closing conflicting applications
+
+#### 🔌 LiteLLM Connection Issues
+
+**Problem: API connection failures**
+
+*Symptoms:* "Transcription failed" errors, connection timeout messages
+
+*Diagnostic:*
 ```bash
 # Test API configuration
 python -c "
@@ -262,10 +432,66 @@ asyncio.run(test())
 "
 ```
 
-**Hotkey not working:**
-- Check for conflicting applications
+*Solutions:*
+- Verify API credentials in Settings
+- Check network connectivity
+- Confirm LiteLLM proxy URL is accessible
+- Contact Thomson Reuters support for credential issues
+
+#### ⌨️ Hotkey Issues
+
+**Problem: Global hotkey not working**
+
+*Symptoms:* No response when pressing `Ctrl+Shift+Space`
+
+*Solutions:*
+- Check for conflicting applications using the same hotkey
+- Try alternative hotkey combinations in Settings
+- Run WindVoice as administrator
+- Restart Windows (for persistent hotkey conflicts)
+
+#### 🔧 Performance Issues
+
+**Problem: High memory usage**
+
+*Solutions:*
+- Restart the application periodically
+- Check for audio buffer leaks (see logs)
+- Ensure proper cleanup after transcription
+
+**Problem: Slow transcription**
+
+*Solutions:*
+- Check network connectivity to LiteLLM proxy
+- Verify audio quality (clear speech, minimal background noise)
+- Try shorter recording sessions
+
+#### 📁 Configuration Issues
+
+**Problem: Settings not saving**
+
+*Solutions:*
+- Check file permissions for `%USERPROFILE%\.windvoice\config.toml`
 - Run as administrator if needed
-- Try alternative hotkey combinations in settings
+- Manually edit configuration file as backup
+
+### Getting Help
+
+If you encounter issues not covered here:
+
+1. **Enable debug logging:**
+   ```bash
+   set WINDVOICE_LOG_LEVEL=DEBUG
+   python main.py
+   ```
+
+2. **Check logs:** Look for detailed error information in the console output
+
+3. **Report issues:** Create an issue on the repository with:
+   - Steps to reproduce
+   - Error messages or log excerpts (remove sensitive data)
+   - Windows version and Python version
+   - Configuration details (without API keys)
 
 ## 🚧 Current Status
 
@@ -294,13 +520,13 @@ asyncio.run(test())
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+We welcome contributions from developers, testers, and documentation writers! See the [Contributing](#contributing) section in the Development guide above for detailed information.
 
-Please read [DEVELOPMENT.md](docs/DEVELOPMENT.md) for detailed contribution guidelines.
+Quick start for contributors:
+1. Review the [Development Guide](docs/DEVELOPMENT.md) for detailed setup
+2. Check the [Architecture Documentation](docs/ARCHITECTURE.md) to understand the system
+3. Look at current issues or suggest new features
+4. Follow the code standards and testing requirements
 
 ## 📄 License
 
