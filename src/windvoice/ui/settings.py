@@ -42,6 +42,7 @@ class SettingsWindow:
         self.api_key_var = None
         self.api_base_var = None
         self.key_alias_var = None
+        self.model_var = None
         self.hotkey_var = None
         self.audio_device_var = None
         self.sample_rate_var = None
@@ -59,6 +60,11 @@ class SettingsWindow:
         self._test_result = None  # Will store {'status': 'success/error/testing', 'message': '...'}
         self._test_polling = False
         self._timeout_id = None
+        
+        # Models fetch variables
+        self._models_result = None  # Will store {'status': 'success/error/loading', 'models': [...], 'message': '...'}
+        self._models_polling = False
+        self._models_timeout_id = None
         
     def show(self):
         """Show the settings window"""
@@ -91,6 +97,7 @@ class SettingsWindow:
         self.api_key_var = ctk.StringVar()
         self.api_base_var = ctk.StringVar()
         self.key_alias_var = ctk.StringVar()
+        self.model_var = ctk.StringVar()
         self.hotkey_var = ctk.StringVar()
         self.audio_device_var = ctk.StringVar()
         self.sample_rate_var = ctk.StringVar()
@@ -183,6 +190,45 @@ class SettingsWindow:
             width=400
         )
         self.key_alias_entry.pack(pady=(5, 10), padx=20, fill="x")
+        
+        # Voice Model Selection
+        ctk.CTkLabel(litellm_frame, text="Voice Model:").pack(anchor="w", padx=20)
+        self.model_combo = ctk.CTkComboBox(
+            litellm_frame,
+            variable=self.model_var,
+            values=[
+                "whisper-1",        # OpenAI Whisper (cheapest, most compatible)
+                "whisper-large-v3", # Latest Whisper large model
+                "whisper-large-v2", # Previous Whisper large model
+                "whisper-medium",   # Medium Whisper model
+                "whisper-small",    # Small Whisper model
+                "whisper-base",     # Base Whisper model
+                "whisper-tiny",     # Tiny Whisper model
+                "deepgram/nova-2",  # Deepgram Nova 2
+                "deepgram/nova",    # Deepgram Nova
+                "azure/whisper-1"   # Azure OpenAI Whisper
+            ],
+            width=400
+        )
+        self.model_combo.pack(pady=(5, 10), padx=20, fill="x")
+        
+        # Model info label
+        model_info = ctk.CTkLabel(
+            litellm_frame, 
+            text="💡 whisper-1 is recommended (cheapest, most reliable)",
+            font=ctk.CTkFont(size=12),
+            text_color="gray"
+        )
+        model_info.pack(pady=(0, 5), padx=20)
+        
+        # Load models button
+        self.load_models_button = ctk.CTkButton(
+            litellm_frame,
+            text="🔍 Load Available Models",
+            command=self._load_available_models,
+            width=200
+        )
+        self.load_models_button.pack(pady=(5, 10))
         
         # Test API button
         self.test_api_button = ctk.CTkButton(
@@ -400,6 +446,7 @@ class SettingsWindow:
         self.api_key_var.set(self.config.litellm.api_key or "")
         self.api_base_var.set(self.config.litellm.api_base or "")
         self.key_alias_var.set(self.config.litellm.key_alias or "")
+        self.model_var.set(self.config.litellm.model or "whisper-1")
         
         # App settings
         self.hotkey_var.set(self.config.app.hotkey)
@@ -575,6 +622,263 @@ class SettingsWindow:
             self._test_result = {'status': 'error', 'message': error_msg}
         
         self.logger.info("[THREAD] _run_api_test completed")
+    
+    def _load_available_models(self):
+        """Load available models from LiteLLM API"""
+        self.logger.info("[UI] Load models button clicked")
+        
+        # Read API configuration
+        try:
+            api_key = self.api_key_var.get() if self.api_key_var else ""
+            api_base = self.api_base_var.get() if self.api_base_var else ""
+            key_alias = self.key_alias_var.get() if self.key_alias_var else ""
+        except Exception as e:
+            self.logger.error(f"[UI] Failed to read API configuration: {e}")
+            messagebox.showerror("UI Error", f"Failed to read configuration: {e}")
+            return
+        
+        if not all([api_key, api_base, key_alias]):
+            self.logger.warning("[UI] Missing API configuration fields for models")
+            messagebox.showwarning("Missing Information", "Please fill in all LiteLLM API fields before loading models.")
+            return
+        
+        self.logger.info("[UI] Starting models fetch - changing button to Loading...")
+        self.load_models_button.configure(text="Loading...", state="disabled")
+        
+        # Store values for the background thread
+        self._models_config = {
+            'api_key': api_key,
+            'api_base': api_base,
+            'key_alias': key_alias
+        }
+        
+        # Initialize models result and start polling
+        self._models_result = {'status': 'loading', 'models': [], 'message': 'Loading models...'}
+        self._models_polling = True
+        
+        # Start polling for results (every 250ms)
+        self._poll_models_result()
+        
+        # Add timeout fallback in case thread fails
+        self._models_timeout_id = self.window.after(15000, self._models_timeout_fallback)  # 15 second timeout
+        
+        # Run models fetch in background thread
+        self.logger.info("[UI] Starting background thread for models fetch")
+        thread = threading.Thread(target=self._run_models_fetch, daemon=True)
+        thread.start()
+        self.logger.info("[UI] Background thread started")
+    
+    def _run_models_fetch(self):
+        """Run models fetch in background thread"""
+        import asyncio
+        
+        self.logger.info("[THREAD] _run_models_fetch started in background thread")
+        
+        try:
+            # Use pre-stored configuration from main thread
+            if not hasattr(self, '_models_config') or not self._models_config:
+                self.logger.error("[THREAD] No models config available")
+                self._models_result = {'status': 'error', 'models': [], 'message': 'No configuration available for models fetch'}
+                return
+            
+            api_key = self._models_config['api_key']
+            api_base = self._models_config['api_base'] 
+            key_alias = self._models_config['key_alias']
+            
+            self.logger.info(f"[THREAD] Using stored config for models - API Base: {api_base}, Key Alias: {key_alias}")
+            
+            # Create temporary config for models fetch
+            from ..core.config import LiteLLMConfig
+            test_config = LiteLLMConfig(
+                api_key=api_key,
+                api_base=api_base,
+                key_alias=key_alias,
+                model="whisper-1"  # Default model for config validation
+            )
+            
+            self.logger.info("[THREAD] Creating TranscriptionService for models fetch...")
+            test_service = TranscriptionService(test_config)
+            
+            # Run the async models fetch
+            try:
+                self.logger.info("[THREAD] Setting up asyncio event loop for models...")
+                # Create new event loop for this thread
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                self.logger.info("[THREAD] Running async get_available_models()...")
+                success, models, message = loop.run_until_complete(test_service.get_available_models())
+                
+                self.logger.info(f"[THREAD] Models fetch completed - Success: {success}, Models: {len(models)}, Message: {message}")
+                
+                # Clean up
+                self.logger.info("[THREAD] Cleaning up async resources...")
+                loop.run_until_complete(test_service.close())
+                loop.close()
+                
+                if success and models:
+                    self.logger.info(f"[THREAD] Models fetch succeeded - updating result with {len(models)} models")
+                    self._models_result = {'status': 'success', 'models': models, 'message': message}
+                else:
+                    self.logger.info(f"[THREAD] Models fetch failed or no models - updating result: {message}")
+                    self._models_result = {'status': 'error', 'models': [], 'message': message or 'No models found'}
+                    
+            except Exception as e:
+                error_msg = f"Models fetch execution failed: {str(e)}"
+                self.logger.error(f"[THREAD] Models fetch execution error: {e}")
+                self._models_result = {'status': 'error', 'models': [], 'message': error_msg}
+            
+        except Exception as e:
+            error_msg = f"Models fetch setup failed: {str(e)}"
+            self.logger.error(f"[THREAD] Models fetch setup error: {e}")
+            self._models_result = {'status': 'error', 'models': [], 'message': error_msg}
+        
+        self.logger.info("[THREAD] _run_models_fetch completed")
+    
+    def _poll_models_result(self):
+        """Poll for models fetch results from main thread"""
+        if not self._models_polling:
+            return
+        
+        try:
+            if self._models_result and self._models_result['status'] != 'loading':
+                # Models fetch completed - process result
+                result = self._models_result
+                status = result['status'] 
+                models = result['models']
+                message = result['message']
+                
+                self.logger.info(f"[POLL] Models fetch completed with status: {status}, models: {len(models)}, message: {message}")
+                
+                # Stop polling
+                self._models_polling = False
+                
+                # Cancel timeout
+                self._cancel_models_timeout()
+                
+                # Update UI based on result
+                if status == 'success' and models:
+                    self._handle_models_success(models, message)
+                else:
+                    self._handle_models_error(message)
+                
+                # Clear result
+                self._models_result = None
+                
+            else:
+                # Models fetch still in progress - continue polling
+                self.window.after(250, self._poll_models_result)  # Poll every 250ms
+                
+        except Exception as e:
+            self.logger.error(f"[POLL] Error during models polling: {e}")
+            # Stop polling on error
+            self._models_polling = False
+    
+    def _handle_models_success(self, models: list[str], message: str):
+        """Handle successful models fetch result in main thread"""
+        self.logger.info(f"[UI] Handling models success: {len(models)} models, message: {message}")
+        
+        try:
+            # Add default fallback models at the beginning
+            fallback_models = [
+                "whisper-1",        # OpenAI Whisper (cheapest, most compatible)
+                "whisper-large-v3", # Latest Whisper large model
+                "whisper-large-v2", # Previous Whisper large model
+                "whisper-medium",   # Medium Whisper model
+                "whisper-small",    # Small Whisper model
+            ]
+            
+            # Combine API models with fallbacks (remove duplicates, preserve order)
+            combined_models = []
+            added_models = set()
+            
+            # Add API models first
+            for model in models:
+                if model not in added_models:
+                    combined_models.append(model)
+                    added_models.add(model)
+            
+            # Add fallback models if not already present
+            for model in fallback_models:
+                if model not in added_models:
+                    combined_models.append(model)
+                    added_models.add(model)
+            
+            # Update the combo box
+            current_selection = self.model_var.get()
+            self.model_combo.configure(values=combined_models)
+            
+            # Preserve current selection if it's still valid, otherwise default to whisper-1
+            if current_selection and current_selection in combined_models:
+                self.model_var.set(current_selection)
+            else:
+                self.model_var.set("whisper-1")
+            
+            self.load_models_button.configure(text="✅ Models Loaded", state="normal")
+            
+            messagebox.showinfo("Models Loaded", f"Successfully loaded {len(models)} models from API!\n\n{message}\n\nThe dropdown now shows available models.")
+            
+            # Reset button after 3 seconds
+            self.window.after(3000, self._reset_models_button)
+            
+        except Exception as e:
+            self.logger.error(f"[UI] Error handling models success: {e}")
+    
+    def _handle_models_error(self, message: str):
+        """Handle failed models fetch result in main thread"""
+        self.logger.info(f"[UI] Handling models error: {message}")
+        
+        try:
+            self.load_models_button.configure(text="❌ Load Failed", state="normal")
+            
+            messagebox.showwarning("Models Load Failed", f"Could not load models from API:\n\n{message}\n\nUsing default model list. You can still select from common models in the dropdown.")
+            
+            # Reset button after 3 seconds
+            self.window.after(3000, self._reset_models_button)
+            
+        except Exception as e:
+            self.logger.error(f"[UI] Error handling models error: {e}")
+    
+    def _cancel_models_timeout(self):
+        """Cancel the models timeout timer"""
+        try:
+            if hasattr(self, '_models_timeout_id') and self._models_timeout_id:
+                self.window.after_cancel(self._models_timeout_id)
+                self._models_timeout_id = None
+                self.logger.info("[UI] Models timeout cancelled")
+        except Exception as e:
+            self.logger.error(f"[UI] Error cancelling models timeout: {e}")
+    
+    def _models_timeout_fallback(self):
+        """Fallback to reset button if models fetch takes too long"""
+        try:
+            if self._models_polling and self._models_result and self._models_result['status'] == 'loading':
+                self.logger.warning("[UI] Models fetch timeout - stopping fetch")
+                
+                # Stop polling
+                self._models_polling = False
+                
+                # Update button
+                self.load_models_button.configure(text="⏰ Timeout", state="normal")
+                
+                messagebox.showwarning("Models Load Timeout", "The models fetch timed out.\n\nThis may indicate network issues or server problems.\nUsing default model list.")
+                
+                # Reset after showing timeout
+                self.window.after(2000, self._reset_models_button)
+                
+                # Clear result
+                self._models_result = None
+                
+        except Exception as e:
+            self.logger.error(f"[UI] Error in models timeout fallback: {e}")
+    
+    def _reset_models_button(self):
+        """Reset the load models button to original state"""
+        try:
+            self.load_models_button.configure(text="🔍 Load Available Models", state="normal")
+            self.logger.info("[UI] Load models button reset to original state")
+        except Exception as e:
+            self.logger.error(f"[UI] Error resetting models button: {e}")
     
     def _poll_test_result(self):
         """Poll for test results from main thread - this can safely update UI"""
@@ -914,6 +1218,7 @@ class SettingsWindow:
             self.config.litellm.api_key = self.api_key_var.get().strip()
             self.config.litellm.api_base = self.api_base_var.get().strip()
             self.config.litellm.key_alias = self.key_alias_var.get().strip()
+            self.config.litellm.model = self.model_var.get().strip() or "whisper-1"
             
             self.config.app.hotkey = self.hotkey_var.get()
             

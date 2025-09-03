@@ -216,6 +216,119 @@ class TranscriptionService:
             self.logger.error(f"[FAIL] {error_msg}")
             return False, error_msg
     
+    async def get_available_models(self) -> tuple[bool, list[str], str]:
+        """Get available models from LiteLLM API"""
+        self.logger.info("[MODELS] Fetching available models from API...")
+        
+        # Validate configuration first
+        config_errors = self.get_config_errors()
+        if config_errors:
+            error_msg = f"Configuration errors: {', '.join(config_errors)}"
+            self.logger.error(f"[MODELS] {error_msg}")
+            return False, [], error_msg
+        
+        try:
+            session = await self._get_session()
+            
+            # Try different model endpoints that LiteLLM might support
+            endpoints_to_try = [
+                f"{self.config.api_base}/v1/models",
+                f"{self.config.api_base}/models",
+                f"{self.config.api_base}/model/info",
+                f"{self.config.api_base}/v1/model/info"
+            ]
+            
+            headers = {
+                "Authorization": f"Bearer {self.config.api_key}",
+                "X-Key-Alias": self.config.key_alias
+            }
+            
+            for endpoint in endpoints_to_try:
+                try:
+                    self.logger.info(f"[MODELS] Trying endpoint: {endpoint}")
+                    
+                    async with session.get(endpoint, headers=headers) as response:
+                        response_text = await response.text()
+                        
+                        self.logger.info(f"[MODELS] {endpoint} - Status: {response.status}")
+                        self.logger.debug(f"[MODELS] Response: {response_text[:300]}...")
+                        
+                        if response.status == 200:
+                            try:
+                                result = await response.json()
+                                
+                                # Parse different response formats
+                                models = []
+                                
+                                # OpenAI-style format: {"data": [{"id": "model-name"}, ...]}
+                                if isinstance(result, dict) and "data" in result:
+                                    models = [model.get("id", "") for model in result["data"] if model.get("id")]
+                                
+                                # Simple list format: ["model1", "model2", ...]
+                                elif isinstance(result, list):
+                                    models = [str(model) for model in result if model]
+                                
+                                # Direct object with models
+                                elif isinstance(result, dict):
+                                    # Try various keys
+                                    for key in ["models", "available_models", "model_list"]:
+                                        if key in result:
+                                            if isinstance(result[key], list):
+                                                models = [str(model) for model in result[key] if model]
+                                                break
+                                    
+                                    # If no models found in standard keys, check if result itself contains model info
+                                    if not models and "id" in result:
+                                        models = [result["id"]]
+                                
+                                # Filter for audio/whisper models only
+                                audio_models = []
+                                for model in models:
+                                    model_lower = model.lower()
+                                    if any(keyword in model_lower for keyword in ["whisper", "speech", "audio", "transcription", "stt"]):
+                                        audio_models.append(model)
+                                
+                                if audio_models:
+                                    self.logger.info(f"[MODELS] Found {len(audio_models)} audio models: {audio_models}")
+                                    return True, audio_models, f"Found {len(audio_models)} models from {endpoint}"
+                                elif models:
+                                    self.logger.info(f"[MODELS] Found {len(models)} total models: {models[:5]}...")
+                                    return True, models, f"Found {len(models)} models from {endpoint}"
+                                else:
+                                    self.logger.warning(f"[MODELS] No models found in response from {endpoint}")
+                                    
+                            except Exception as parse_error:
+                                self.logger.error(f"[MODELS] Failed to parse response from {endpoint}: {parse_error}")
+                                continue
+                        
+                        elif response.status == 404:
+                            self.logger.info(f"[MODELS] {endpoint} not available (404)")
+                            continue
+                        elif response.status == 401:
+                            error_msg = "Invalid API key for models endpoint"
+                            self.logger.error(f"[MODELS] {error_msg}")
+                            return False, [], error_msg
+                        else:
+                            self.logger.warning(f"[MODELS] {endpoint} returned {response.status}")
+                            continue
+                            
+                except aiohttp.ClientError as e:
+                    self.logger.warning(f"[MODELS] Network error for {endpoint}: {e}")
+                    continue
+                except Exception as e:
+                    self.logger.error(f"[MODELS] Unexpected error for {endpoint}: {e}")
+                    continue
+            
+            # No endpoints worked
+            error_msg = "No model endpoints are available or working"
+            self.logger.warning(f"[MODELS] {error_msg}")
+            return False, [], error_msg
+            
+        except Exception as e:
+            error_msg = f"Failed to fetch models: {str(e)}"
+            self.logger.error(f"[MODELS] {error_msg}")
+            return False, [], error_msg
+    
     async def close(self):
         if self.session and not self.session.closed:
             await self.session.close()
