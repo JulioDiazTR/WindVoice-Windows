@@ -225,8 +225,8 @@ class AudioRecorder:
             raise AudioError("Recording is already in progress")
             
         try:
-            # Pre-allocate buffer for up to 30 seconds of audio
-            max_duration = 30
+            # Pre-allocate buffer for up to 120 seconds (2 minutes) of audio
+            max_duration = 120
             buffer_size = int(max_duration * self.sample_rate)
             
             WindVoiceLogger.log_audio_workflow_step(
@@ -517,7 +517,7 @@ class AudioRecorder:
     def is_recording(self) -> bool:
         return self.recording
     
-    async def record_with_timeout(self, max_duration: float = 30.0) -> str:
+    async def record_with_timeout(self, max_duration: float = 120.0) -> str:
         self.start_recording()
         
         try:

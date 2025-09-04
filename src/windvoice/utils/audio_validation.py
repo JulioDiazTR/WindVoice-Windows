@@ -52,7 +52,7 @@ class AudioValidator:
         self.silence_threshold_rms = 0.005 # RMS threshold for silence detection (reduced from 0.01)
         self.voice_threshold_rms = 0.01    # RMS threshold for voice detection (reduced from 0.02)
         self.min_duration = 0.3            # Minimum recording duration (reduced from 0.5)
-        self.max_duration = 60.0           # Maximum recording duration (seconds)
+        self.max_duration = 120.0          # Maximum recording duration (2 minutes)
         self.clipping_threshold = 0.98     # Peak level for clipping detection
         self.noise_floor_percentile = 15   # Percentile for noise floor estimation (slightly higher)
         
