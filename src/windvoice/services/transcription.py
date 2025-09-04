@@ -25,41 +25,50 @@ class TranscriptionService:
         
     async def _get_session(self) -> aiohttp.ClientSession:
         if self.session is None or self.session.closed:
+            # Optimized timeouts and connection settings for LiteLLM
             self.session = aiohttp.ClientSession(
-                timeout=aiohttp.ClientTimeout(total=15, connect=5)
+                timeout=aiohttp.ClientTimeout(
+                    total=45,      # Increased for Whisper processing
+                    connect=5,     # Quick connection
+                    sock_read=30   # Allow time for transcription
+                ),
+                connector=aiohttp.TCPConnector(
+                    limit=10,           # Connection pool
+                    limit_per_host=3,   # Per-host limit
+                    keepalive_timeout=30,
+                    enable_cleanup_closed=True
+                )
             )
         return self.session
     
     def _compress_audio_if_needed(self, audio_file_path: str) -> Tuple[str, bool]:
-        """Compress audio file if it's larger than 10MB to optimize API performance"""
+        """Only compress very large files to avoid unnecessary processing delays"""
         file_path = Path(audio_file_path)
         file_size_mb = file_path.stat().st_size / (1024 * 1024)
         
-        # If file is smaller than 10MB, no compression needed
-        if file_size_mb <= 10.0:
-            self.logger.debug(f"Audio file size {file_size_mb:.1f}MB <= 10MB, no compression needed")
+        # Skip compression for files under 25MB (LiteLLM limit) to maximize speed
+        if file_size_mb <= 25.0:
+            self.logger.debug(f"Audio file size {file_size_mb:.1f}MB <= 25MB, skipping compression for speed")
             return audio_file_path, False
             
-        self.logger.info(f"Audio file size {file_size_mb:.1f}MB > 10MB, applying compression...")
+        self.logger.info(f"Large audio file {file_size_mb:.1f}MB > 25MB, applying minimal compression...")
         
         try:
-            # Load audio data
+            # Minimal compression for very large files only
             audio_data, sample_rate = sf.read(audio_file_path)
             
             # Ensure mono
             if len(audio_data.shape) > 1:
                 audio_data = np.mean(audio_data, axis=1)
             
-            # Compress: reduce sample rate to 22kHz (optimal for speech)
-            if sample_rate > 22050:
-                from scipy import signal
-                # Calculate decimation factor
-                decimation_factor = sample_rate // 22050
+            # Only downsample if significantly higher than 16kHz
+            if sample_rate > 24000:
+                # Simple decimation without scipy for maximum speed
+                decimation_factor = sample_rate // 16000
                 if decimation_factor > 1:
-                    # Apply anti-aliasing filter and downsample
-                    audio_data = signal.decimate(audio_data, decimation_factor, ftype='iir')
-                    new_sample_rate = sample_rate // decimation_factor
-                    self.logger.debug(f"Downsampled from {sample_rate}Hz to {new_sample_rate}Hz")
+                    audio_data = audio_data[::decimation_factor]
+                    new_sample_rate = 16000
+                    self.logger.debug(f"Fast downsample: {sample_rate}Hz -> {new_sample_rate}Hz")
                 else:
                     new_sample_rate = sample_rate
             else:
@@ -68,19 +77,15 @@ class TranscriptionService:
             # Create compressed file
             compressed_path = file_path.parent / f"compressed_{file_path.name}"
             
-            # Save with optimized settings for speech transcription
             sf.write(
                 str(compressed_path),
                 audio_data,
                 new_sample_rate,
-                subtype='PCM_16'  # 16-bit PCM for optimal size/quality balance
+                subtype='PCM_16'
             )
             
             compressed_size_mb = compressed_path.stat().st_size / (1024 * 1024)
-            compression_ratio = file_size_mb / compressed_size_mb
-            
-            self.logger.info(f"Audio compressed: {file_size_mb:.1f}MB → {compressed_size_mb:.1f}MB "
-                           f"(ratio: {compression_ratio:.1f}x)")
+            self.logger.info(f"Minimal compression: {file_size_mb:.1f}MB → {compressed_size_mb:.1f}MB")
             
             return str(compressed_path), True
             
@@ -95,59 +100,51 @@ class TranscriptionService:
         # Compress audio if needed for optimal API performance
         working_file_path, was_compressed = self._compress_audio_if_needed(audio_file_path)
         
-        # Optimized session management: keep session alive but force fresh request
-        # Note: We keep the session but ensure each request is unique to prevent caching issues
-        
-        # Generate unique identifier for this request
+        # Streamlined request - remove unnecessary headers for maximum speed
         import time
-        import uuid
-        request_id = str(uuid.uuid4())[:8]
-        timestamp = int(time.time() * 1000)  # milliseconds
+        timestamp = int(time.time() * 1000)
         
         url = f"{self.config.api_base}/v1/audio/transcriptions"
         headers = {
             "Authorization": f"Bearer {self.config.api_key}",
-            "X-Key-Alias": self.config.key_alias,
-            "X-Request-ID": request_id,  # Unique identifier
-            "X-Timestamp": str(timestamp),  # Ensure uniqueness
-            "Cache-Control": "no-cache, no-store, must-revalidate",  # Prevent caching
-            "Pragma": "no-cache",
-            "Expires": "0"
+            "X-Key-Alias": self.config.key_alias
         }
         
-        # Log detailed request information
+        # Log request information
         file_size = Path(working_file_path).stat().st_size
-        self.logger.info(f"[TRANSCRIPTION_REQUEST] ID: {request_id}, File: {working_file_path}, Size: {file_size} bytes, Compressed: {was_compressed}")
+        self.logger.info(f"[TRANSCRIPTION_REQUEST] File: {Path(working_file_path).name}, Size: {file_size} bytes")
         
         # Retry logic - 3 attempts with 1-second delays
         for attempt in range(3):
             try:
                 session = await self._get_session()
                 
-                # Create form data for file upload
+                # Fast form data creation
                 data = aiohttp.FormData()
                 with open(working_file_path, 'rb') as audio_file:
                     audio_content = audio_file.read()
                     
-                # Add unique filename with timestamp to prevent server-side caching
-                unique_filename = f'audio_{timestamp}_{request_id}.wav'
+                # Simple filename - no need for complex uniqueness
+                filename = f'audio_{timestamp}.wav'
                 data.add_field(
                     'file',
                     audio_content,
-                    filename=unique_filename,
+                    filename=filename,
                     content_type='audio/wav'
                 )
                 data.add_field('model', self.config.model)
                 data.add_field('response_format', 'json')
-                data.add_field('timestamp', str(timestamp))  # Force unique request
                 
                 async with session.post(url, headers=headers, data=data) as response:
                     if response.status == 200:
                         result = await response.json()
                         transcribed_text = result.get('text', '').strip()
                         
-                        # Log detailed response information
-                        self.logger.info(f"[TRANSCRIPTION_RESPONSE] ID: {request_id}, Status: 200, Text: '{transcribed_text}', Length: {len(transcribed_text)}")
+                        # Log response information
+                        self.logger.info(f"[TRANSCRIPTION_RESPONSE] Status: 200, Length: {len(transcribed_text)} chars")
+                        if len(transcribed_text) > 0:
+                            preview = transcribed_text[:100] + ('...' if len(transcribed_text) > 100 else '')
+                            self.logger.debug(f"Text: '{preview}'")
                         
                         # Keep session alive for better performance (don't close unnecessarily)
                         
