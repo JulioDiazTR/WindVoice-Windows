@@ -1,23 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git commit:*)",
-      "WebFetch(domain:superwhisper.com)",
-      "WebSearch",
-      "Bash(git add:*)",
-      "Bash(python:*)",
-      "Bash(taskkill:*)",
-      "Read(C:\\Users\\6113618\\.windvoice\\logs/**)",
-      "Bash(timeout:*)",
-      "Bash(del test_status_dialog.py test_robust_simple.py)",
-      "Bash(dir)",
-      "Bash(del \"C:\\Users\\6113618\\OneDrive - Thomson Reuters Incorporated\\Documents\\GitHub\\WindVoice-Windows\\docs\\TESTING.md\")",
-      "Bash(git rm:*)",
-      "Bash(del test_microphone_list.py)",
-      "Bash(del test_robust_simple.py)",
-      "WebFetch(domain:github.com)",
-      "WebFetch(domain:docs.litellm.ai)",
-      "WebFetch(domain:litellm.int.thomsonreuters.com)"
+      "Read(/C:\\Users\\6113618\\OneDrive - Thomson Reuters Incorporated\\Documents\\GitHub\\WindVoice-Windows\\src\\windvoice\\ui/**)",
+      "Read(/C:\\Users\\6113618\\OneDrive - Thomson Reuters Incorporated\\Documents\\GitHub\\WindVoice-Windows\\src\\windvoice\\ui/**)",
+      "Read(/C:\\Users\\6113618\\OneDrive - Thomson Reuters Incorporated\\Documents\\GitHub\\WindVoice-Windows\\src\\windvoice\\ui/**)"
     ],
     "deny": [],
     "ask": []

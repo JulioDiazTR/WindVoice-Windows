@@ -48,13 +48,13 @@ class AudioValidator:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         
-        # Configurable thresholds (made more permissive)
-        self.silence_threshold_rms = 0.005 # RMS threshold for silence detection (reduced from 0.01)
-        self.voice_threshold_rms = 0.01    # RMS threshold for voice detection (reduced from 0.02)
-        self.min_duration = 0.3            # Minimum recording duration (reduced from 0.5)
+        # Optimized thresholds for better voice detection (more permissive)
+        self.silence_threshold_rms = 0.003 # RMS threshold for silence detection (further reduced for quiet voices)
+        self.voice_threshold_rms = 0.005   # RMS threshold for voice detection (more sensitive)
+        self.min_duration = 0.2            # Minimum recording duration (allow shorter valid recordings)
         self.max_duration = 120.0          # Maximum recording duration (2 minutes)
         self.clipping_threshold = 0.98     # Peak level for clipping detection
-        self.noise_floor_percentile = 15   # Percentile for noise floor estimation (slightly higher)
+        self.noise_floor_percentile = 20   # Percentile for noise floor estimation (adaptive)
         
     def validate_audio_file(self, file_path: str) -> AudioQualityMetrics:
         """Comprehensive audio file validation"""
@@ -113,12 +113,12 @@ class AudioValidator:
         # Clipping detection
         clipping_detected = peak_level > self.clipping_threshold
         
-        # Voice detection logic (more permissive)
+        # Voice detection logic (optimized for better sensitivity)
         has_voice = (
             duration >= self.min_duration and
             rms_level > self.voice_threshold_rms and
-            voice_activity_ratio > 0.05 and  # At least 5% voice activity (reduced from 10%)
-            not (noise_level > rms_level * 0.9)  # Not mostly noise (more permissive)
+            voice_activity_ratio > 0.03 and  # At least 3% voice activity (more sensitive)
+            not (noise_level > rms_level * 0.8)  # Not mostly noise (allow more background noise)
         )
         
         # Quality score calculation
@@ -161,10 +161,10 @@ class AudioValidator:
                 
             frame_energies = np.array(frame_energies)
             
-            # Adaptive threshold based on energy distribution (more permissive)
+            # Adaptive threshold based on energy distribution (optimized sensitivity)
             energy_threshold = max(
                 self.voice_threshold_rms,
-                np.percentile(frame_energies, 50)  # 50th percentile as threshold (reduced from 60th)
+                np.percentile(frame_energies, 40)  # 40th percentile as threshold (more sensitive)
             )
             
             # Detect voice segments
