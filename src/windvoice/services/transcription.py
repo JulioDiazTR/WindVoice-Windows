@@ -1,7 +1,10 @@
 import aiohttp
 import asyncio
+import tempfile
+import soundfile as sf
+import numpy as np
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 from ..core.exceptions import TranscriptionError
 from ..core.config import LiteLLMConfig
 from ..utils.logging import get_logger, WindVoiceLogger
@@ -23,18 +26,77 @@ class TranscriptionService:
     async def _get_session(self) -> aiohttp.ClientSession:
         if self.session is None or self.session.closed:
             self.session = aiohttp.ClientSession(
-                timeout=aiohttp.ClientTimeout(total=30)
+                timeout=aiohttp.ClientTimeout(total=15, connect=5)
             )
         return self.session
+    
+    def _compress_audio_if_needed(self, audio_file_path: str) -> Tuple[str, bool]:
+        """Compress audio file if it's larger than 10MB to optimize API performance"""
+        file_path = Path(audio_file_path)
+        file_size_mb = file_path.stat().st_size / (1024 * 1024)
+        
+        # If file is smaller than 10MB, no compression needed
+        if file_size_mb <= 10.0:
+            self.logger.debug(f"Audio file size {file_size_mb:.1f}MB <= 10MB, no compression needed")
+            return audio_file_path, False
+            
+        self.logger.info(f"Audio file size {file_size_mb:.1f}MB > 10MB, applying compression...")
+        
+        try:
+            # Load audio data
+            audio_data, sample_rate = sf.read(audio_file_path)
+            
+            # Ensure mono
+            if len(audio_data.shape) > 1:
+                audio_data = np.mean(audio_data, axis=1)
+            
+            # Compress: reduce sample rate to 22kHz (optimal for speech)
+            if sample_rate > 22050:
+                from scipy import signal
+                # Calculate decimation factor
+                decimation_factor = sample_rate // 22050
+                if decimation_factor > 1:
+                    # Apply anti-aliasing filter and downsample
+                    audio_data = signal.decimate(audio_data, decimation_factor, ftype='iir')
+                    new_sample_rate = sample_rate // decimation_factor
+                    self.logger.debug(f"Downsampled from {sample_rate}Hz to {new_sample_rate}Hz")
+                else:
+                    new_sample_rate = sample_rate
+            else:
+                new_sample_rate = sample_rate
+            
+            # Create compressed file
+            compressed_path = file_path.parent / f"compressed_{file_path.name}"
+            
+            # Save with optimized settings for speech transcription
+            sf.write(
+                str(compressed_path),
+                audio_data,
+                new_sample_rate,
+                subtype='PCM_16'  # 16-bit PCM for optimal size/quality balance
+            )
+            
+            compressed_size_mb = compressed_path.stat().st_size / (1024 * 1024)
+            compression_ratio = file_size_mb / compressed_size_mb
+            
+            self.logger.info(f"Audio compressed: {file_size_mb:.1f}MB → {compressed_size_mb:.1f}MB "
+                           f"(ratio: {compression_ratio:.1f}x)")
+            
+            return str(compressed_path), True
+            
+        except Exception as e:
+            self.logger.warning(f"Audio compression failed: {e}, using original file")
+            return audio_file_path, False
     
     async def transcribe_audio(self, audio_file_path: str) -> str:
         if not Path(audio_file_path).exists():
             raise TranscriptionError(f"Audio file not found: {audio_file_path}")
         
-        # CRITICAL FIX: Force fresh session for each transcription to prevent caching
-        if self.session and not self.session.closed:
-            await self.session.close()
-        self.session = None
+        # Compress audio if needed for optimal API performance
+        working_file_path, was_compressed = self._compress_audio_if_needed(audio_file_path)
+        
+        # Optimized session management: keep session alive but force fresh request
+        # Note: We keep the session but ensure each request is unique to prevent caching issues
         
         # Generate unique identifier for this request
         import time
@@ -47,12 +109,15 @@ class TranscriptionService:
             "Authorization": f"Bearer {self.config.api_key}",
             "X-Key-Alias": self.config.key_alias,
             "X-Request-ID": request_id,  # Unique identifier
-            "Cache-Control": "no-cache"  # Prevent caching
+            "X-Timestamp": str(timestamp),  # Ensure uniqueness
+            "Cache-Control": "no-cache, no-store, must-revalidate",  # Prevent caching
+            "Pragma": "no-cache",
+            "Expires": "0"
         }
         
         # Log detailed request information
-        file_size = Path(audio_file_path).stat().st_size
-        self.logger.info(f"[TRANSCRIPTION_REQUEST] ID: {request_id}, File: {audio_file_path}, Size: {file_size} bytes")
+        file_size = Path(working_file_path).stat().st_size
+        self.logger.info(f"[TRANSCRIPTION_REQUEST] ID: {request_id}, File: {working_file_path}, Size: {file_size} bytes, Compressed: {was_compressed}")
         
         # Retry logic - 3 attempts with 1-second delays
         for attempt in range(3):
@@ -61,7 +126,7 @@ class TranscriptionService:
                 
                 # Create form data for file upload
                 data = aiohttp.FormData()
-                with open(audio_file_path, 'rb') as audio_file:
+                with open(working_file_path, 'rb') as audio_file:
                     audio_content = audio_file.read()
                     
                 # Add unique filename with timestamp to prevent server-side caching
@@ -84,9 +149,15 @@ class TranscriptionService:
                         # Log detailed response information
                         self.logger.info(f"[TRANSCRIPTION_RESPONSE] ID: {request_id}, Status: 200, Text: '{transcribed_text}', Length: {len(transcribed_text)}")
                         
-                        # Force session cleanup after successful transcription
-                        await session.close()
-                        self.session = None
+                        # Keep session alive for better performance (don't close unnecessarily)
+                        
+                        # Clean up compressed file if it was created
+                        if was_compressed and Path(working_file_path).exists():
+                            try:
+                                Path(working_file_path).unlink()
+                                self.logger.debug(f"Cleaned up compressed file: {working_file_path}")
+                            except Exception as cleanup_error:
+                                self.logger.warning(f"Failed to clean up compressed file: {cleanup_error}")
                         
                         return transcribed_text
                     
@@ -121,6 +192,14 @@ class TranscriptionService:
                     await asyncio.sleep(1)
                     continue
                 raise TranscriptionError(f"Transcription failed: {str(e)}")
+        
+        # Clean up compressed file if it was created (in case of final failure)
+        if was_compressed and Path(working_file_path).exists():
+            try:
+                Path(working_file_path).unlink()
+                self.logger.debug(f"Cleaned up compressed file after failure: {working_file_path}")
+            except Exception as cleanup_error:
+                self.logger.warning(f"Failed to clean up compressed file after failure: {cleanup_error}")
         
         raise TranscriptionError("Transcription failed after 3 attempts")
     
