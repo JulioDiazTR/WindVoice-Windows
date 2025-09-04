@@ -30,9 +30,11 @@ class AudioValidation:
 
 
 class AudioRecorder:
-    def __init__(self, sample_rate: int = 44100, device: str = "default"):
+    def __init__(self, sample_rate: int = 16000, device: str = "default"):
         self.logger = get_logger("audio")
         
+        # PERFORMANCE OPTIMIZATION: Default to 16kHz for Whisper optimization
+        # 16kHz is Whisper's native sample rate, eliminates downsampling overhead
         self.sample_rate = sample_rate
         self.device = device if device != "default" else None
         self.channels = 1  # Mono for voice
@@ -225,18 +227,19 @@ class AudioRecorder:
             raise AudioError("Recording is already in progress")
             
         try:
-            # Use dynamic buffer allocation - start with 10 seconds, expand as needed
-            initial_duration = 10  # Start with 10 seconds buffer
+            # PERFORMANCE OPTIMIZATION: Dynamic buffer allocation based on typical usage
+            # Most voice recordings are <30 seconds, so start with reasonable buffer
+            typical_duration = 30  # Optimized for typical voice recordings
             self.max_duration = 120  # Maximum supported duration
-            self.buffer_size = int(initial_duration * self.sample_rate)
+            self.buffer_size = int(typical_duration * self.sample_rate)
             
             WindVoiceLogger.log_audio_workflow_step(
                 self.logger,
                 "Recording_Buffer_Setup",
                 {
-                    "initial_duration_sec": initial_duration,
+                    "optimized_duration_sec": typical_duration,
                     "max_duration_sec": self.max_duration,
-                    "initial_buffer_size_samples": self.buffer_size,
+                    "optimized_buffer_size_samples": self.buffer_size,
                     "device": self.device,
                     "sample_rate": self.sample_rate,
                     "channels": self.channels
@@ -261,11 +264,10 @@ class AudioRecorder:
             # CRITICAL FIX: Clear any previous audio data to prevent caching bug
             self.audio_data = None
             
-            self.logger.info(f"Starting dynamic sounddevice recording...")
-            # Use maximum duration for sounddevice but track actual usage
-            max_buffer_size = int(self.max_duration * self.sample_rate)
+            self.logger.info(f"Starting optimized sounddevice recording...")
+            # PERFORMANCE: Use optimized buffer size instead of max duration
             self.audio_data = sd.rec(
-                max_buffer_size,
+                self.buffer_size,
                 samplerate=self.sample_rate,
                 channels=self.channels,
                 device=device_index,
@@ -281,8 +283,8 @@ class AudioRecorder:
                 "Recording_Started_SUCCESS",
                 {
                     "start_time": self.recording_start_time,
-                    "allocated_buffer_samples": max_buffer_size,
-                    "allocated_buffer_duration": self.max_duration
+                    "optimized_buffer_samples": self.buffer_size,
+                    "optimized_buffer_duration": typical_duration
                 }
             )
             
@@ -406,24 +408,15 @@ class AudioRecorder:
                 }
             )
             
-            # Save optimized audio file (16kHz for Whisper speed optimization)
+            # Save audio file (already optimized at 16kHz for Whisper)
             temp_file = self.temp_dir / f"recording_{asyncio.get_event_loop().time():.0f}.wav"
-            self.logger.debug(f"Saving optimized audio to: {temp_file}")
+            self.logger.debug(f"Saving Whisper-optimized audio to: {temp_file}")
             
-            # Optimize for Whisper: downsample to 16kHz if higher sample rate
-            if self.sample_rate > 16000 and len(audio_trimmed) > 0:
-                # Fast downsample for Whisper optimization
-                downsample_factor = self.sample_rate // 16000
-                if downsample_factor > 1:
-                    audio_optimized = audio_trimmed[::downsample_factor]
-                    optimized_sample_rate = 16000
-                    self.logger.debug(f"Downsampled for Whisper: {self.sample_rate}Hz -> {optimized_sample_rate}Hz")
-                else:
-                    audio_optimized = audio_trimmed
-                    optimized_sample_rate = self.sample_rate
-            else:
-                audio_optimized = audio_trimmed
-                optimized_sample_rate = self.sample_rate
+            # PERFORMANCE: No downsampling needed - already recording at optimal 16kHz
+            audio_optimized = audio_trimmed
+            optimized_sample_rate = self.sample_rate
+            
+            self.logger.debug(f"Using native sample rate: {optimized_sample_rate}Hz (Whisper-optimized)")
             
             sf.write(
                 str(temp_file),

@@ -3,7 +3,16 @@
     "allow": [
       "Read(/C:\\Users\\6113618\\OneDrive - Thomson Reuters Incorporated\\Documents\\GitHub\\WindVoice-Windows\\src\\windvoice\\ui/**)",
       "Read(/C:\\Users\\6113618\\OneDrive - Thomson Reuters Incorporated\\Documents\\GitHub\\WindVoice-Windows\\src\\windvoice\\ui/**)",
-      "Read(/C:\\Users\\6113618\\OneDrive - Thomson Reuters Incorporated\\Documents\\GitHub\\WindVoice-Windows\\src\\windvoice\\ui/**)"
+      "Read(/C:\\Users\\6113618\\OneDrive - Thomson Reuters Incorporated\\Documents\\GitHub\\WindVoice-Windows\\src\\windvoice\\ui/**)",
+      "Read(/C:\\Users\\6113618\\OneDrive - Thomson Reuters Incorporated\\Documents\\GitHub\\WindVoice-Windows\\src\\windvoice\\services/**)",
+      "Read(/C:\\Users\\6113618\\OneDrive - Thomson Reuters Incorporated\\Documents\\GitHub\\WindVoice-Windows\\src\\windvoice\\services/**)",
+      "Read(/C:\\Users\\6113618\\OneDrive - Thomson Reuters Incorporated\\Documents\\GitHub\\WindVoice-Windows\\src\\windvoice\\core/**)",
+      "Read(/C:\\Users\\6113618\\OneDrive - Thomson Reuters Incorporated\\Documents\\GitHub\\WindVoice-Windows\\src\\windvoice\\services/**)",
+      "Read(/C:\\Users\\6113618\\OneDrive - Thomson Reuters Incorporated\\Documents\\GitHub\\WindVoice-Windows\\src\\windvoice\\services/**)",
+      "Read(/C:\\Users\\6113618\\OneDrive - Thomson Reuters Incorporated\\Documents\\GitHub\\WindVoice-Windows\\src\\windvoice\\core/**)",
+      "Read(/C:\\Users\\6113618\\OneDrive - Thomson Reuters Incorporated\\Documents\\GitHub\\WindVoice-Windows\\src\\windvoice\\services/**)",
+      "Read(/C:\\Users\\6113618\\OneDrive - Thomson Reuters Incorporated\\Documents\\GitHub\\WindVoice-Windows\\src\\windvoice\\core/**)",
+      "Read(/C:\\Users\\6113618\\OneDrive - Thomson Reuters Incorporated\\Documents\\GitHub\\WindVoice-Windows\\src\\windvoice\\services/**)"
     ],
     "deny": [],
     "ask": []

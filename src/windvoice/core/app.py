@@ -122,10 +122,17 @@ class WindVoiceApp:
         )
         self.logger.info("AudioRecorder initialized successfully")
         
-        # Transcription service
+        # Transcription service with performance optimization
         self.logger.info("Initializing TranscriptionService...")
         self.transcription_service = TranscriptionService(self.config.litellm)
-        self.logger.info("TranscriptionService initialized successfully")
+        
+        # PERFORMANCE: Pre-warm HTTP connection for faster first transcription
+        try:
+            await self.transcription_service.warm_up_connection()
+            self.logger.info("TranscriptionService initialized successfully with connection pre-warming")
+        except Exception as e:
+            self.logger.warning(f"TranscriptionService connection warm-up failed: {e}")
+            self.logger.info("TranscriptionService initialized successfully (without pre-warming)")
         
         # Text injection service
         self.logger.info("Initializing TextInjectionService...")
@@ -421,19 +428,28 @@ class WindVoiceApp:
                 {"file_path": audio_file_path, "file_exists": Path(audio_file_path).exists()}
             )
             
-            # Advanced audio validation with detailed feedback
-            self.logger.info("Starting audio validation...")
+            # PERFORMANCE OPTIMIZATION: Single audio validation call
+            self.logger.info("Starting optimized audio validation...")
             quality_metrics = self.audio_recorder.get_quality_metrics(audio_file_path)
-            title, message = self.audio_recorder.get_validation_message(audio_file_path)
+            
+            # Get validation message from metrics (no additional file read)
+            if not quality_metrics.has_voice:
+                if quality_metrics.rms_level < 0.005:
+                    title, message = "No Voice Detected", "Your recording appears to be silent or too quiet. Please try again and speak clearly into your microphone."
+                else:
+                    title, message = "Audio Quality Low", "Voice detection failed due to low audio quality. Please try recording in a quieter environment."
+            else:
+                title, message = "Audio Valid", f"Voice detected with quality score: {quality_metrics.quality_score:.2f}"
             
             WindVoiceLogger.log_audio_workflow_step(
                 self.logger,
-                "Audio_Validation_Complete",
+                "Audio_Validation_Complete_OPTIMIZED",
                 {
                     "has_voice": quality_metrics.has_voice,
                     "quality_score": quality_metrics.quality_score,
                     "rms_level": quality_metrics.rms_level,
-                    "duration": quality_metrics.duration
+                    "duration": quality_metrics.duration,
+                    "single_validation": True
                 }
             )
             

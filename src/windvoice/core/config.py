@@ -18,7 +18,7 @@ class LiteLLMConfig:
 class AppConfig:
     hotkey: str = "ctrl+shift+space"
     audio_device: str = "default"
-    sample_rate: int = 44100
+    sample_rate: int = 16000  # PERFORMANCE: Optimized for Whisper (16kHz native)
 
 
 @dataclass
@@ -84,7 +84,7 @@ class ConfigManager:
             "app": {
                 "hotkey": "ctrl+shift+space",
                 "audio_device": "default", 
-                "sample_rate": 44100
+                "sample_rate": 16000
             },
             "ui": {
                 "theme": "dark",

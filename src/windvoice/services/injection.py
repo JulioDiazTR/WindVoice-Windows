@@ -19,8 +19,7 @@ class TextInjectionService:
         try:
             self.logger.debug(f"[DIRECT] Starting direct text injection for {len(text)} characters")
             
-            # Minimal delay - let Windows handle focus
-            time.sleep(0.01)
+            # PERFORMANCE: No delay needed - Windows handles focus automatically
             
             # Type the text with optimized timing
             failed_chars = 0
@@ -84,7 +83,7 @@ class TextInjectionService:
             # Set text to clipboard
             self.logger.debug("[CLIPBOARD] Copying text to clipboard")
             pyperclip.copy(text)
-            time.sleep(0.08)  # Slightly longer delay to ensure clipboard is set
+            time.sleep(0.02)  # PERFORMANCE: Minimal delay for clipboard synchronization
             
             # Verify clipboard was set
             try:
@@ -101,7 +100,7 @@ class TextInjectionService:
             self.keyboard_controller.release('v')
             self.keyboard_controller.release(Key.ctrl)
             
-            time.sleep(0.15)  # Wait for paste to complete
+            time.sleep(0.05)  # PERFORMANCE: Reduced wait for paste completion
             
             # CRITICAL: Restore original clipboard immediately to minimize disruption
             try:
@@ -219,7 +218,7 @@ class TextInjectionService:
             
             # Step 2: Copy our text to clipboard
             pyperclip.copy(text)
-            time.sleep(0.03)  # Reduced delay for performance
+            time.sleep(0.01)  # PERFORMANCE: Minimal clipboard sync delay
             
             # Step 3: Quick verification (single attempt for speed)
             try:
@@ -235,7 +234,7 @@ class TextInjectionService:
             self.keyboard_controller.release('v')
             self.keyboard_controller.release(Key.ctrl)
             
-            time.sleep(0.05)  # Reduced wait time for better performance
+            time.sleep(0.02)  # PERFORMANCE: Minimal wait for paste operation
             
             self.logger.debug("[CLIPBOARD_SAFE] Clipboard injection completed")
             return True
