@@ -19,7 +19,8 @@ class TextInjectionService:
         try:
             self.logger.debug(f"[DIRECT] Starting direct text injection for {len(text)} characters")
             
-            # PERFORMANCE: No delay needed - Windows handles focus automatically
+            # CRITICAL: Small delay required to maintain focus on text field
+            time.sleep(0.05)
             
             # Type the text with optimized timing
             failed_chars = 0
@@ -83,7 +84,7 @@ class TextInjectionService:
             # Set text to clipboard
             self.logger.debug("[CLIPBOARD] Copying text to clipboard")
             pyperclip.copy(text)
-            time.sleep(0.02)  # PERFORMANCE: Minimal delay for clipboard synchronization
+            time.sleep(0.05)  # FOCUS: Adequate delay for clipboard sync and focus preservation
             
             # Verify clipboard was set
             try:
@@ -100,7 +101,7 @@ class TextInjectionService:
             self.keyboard_controller.release('v')
             self.keyboard_controller.release(Key.ctrl)
             
-            time.sleep(0.05)  # PERFORMANCE: Reduced wait for paste completion
+            time.sleep(0.1)  # FOCUS: Sufficient wait for paste completion and focus preservation
             
             # CRITICAL: Restore original clipboard immediately to minimize disruption
             try:
@@ -218,7 +219,7 @@ class TextInjectionService:
             
             # Step 2: Copy our text to clipboard
             pyperclip.copy(text)
-            time.sleep(0.01)  # PERFORMANCE: Minimal clipboard sync delay
+            time.sleep(0.05)  # FOCUS: Adequate delay for clipboard sync and focus preservation
             
             # Step 3: Quick verification (single attempt for speed)
             try:
@@ -234,7 +235,7 @@ class TextInjectionService:
             self.keyboard_controller.release('v')
             self.keyboard_controller.release(Key.ctrl)
             
-            time.sleep(0.02)  # PERFORMANCE: Minimal wait for paste operation
+            time.sleep(0.1)  # FOCUS: Sufficient wait for paste operation and focus preservation
             
             self.logger.debug("[CLIPBOARD_SAFE] Clipboard injection completed")
             return True
