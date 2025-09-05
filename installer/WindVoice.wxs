@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+    <Product Id="F1F1232A-8C25-4DD9-8795-D02A4205790F" 
+             Name="WindVoice-Windows" 
+             Language="1033" 
+             Version="1.0.0.0" 
+             Manufacturer="WindVoice Team"
+             UpgradeCode="12345678-1234-1234-1234-123456789ABC">
+             
+        <Package InstallerVersion="200" 
+                 Compressed="yes" 
+                 InstallScope="perMachine" 
+                 Description="WindVoice-Windows - Voice dictation application for Windows"
+                 Comments="Fast and accurate voice-to-text transcription with automatic text insertion"
+                 AdminImage="no"
+                 InstallPrivileges="elevated" />
+
+        <MajorUpgrade DowngradeErrorMessage="A newer version of WindVoice-Windows is already installed. Please uninstall the current version before proceeding." />
+        
+        <MediaTemplate EmbedCab="yes" />
+        
+        <!-- Include WiX UI Extension for standard dialogs -->
+        <UIRef Id="WixUI_InstallDir" />
+        <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+        
+        <!-- License agreement (using built-in template) -->
+        <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
+        
+        <!-- Custom properties for installer -->
+        <Property Id="ARPHELPLINK" Value="https://github.com/your-repo/windvoice-windows" />
+        <Property Id="ARPURLINFOABOUT" Value="https://github.com/your-repo/windvoice-windows" />
+        
+        <!-- Application information displayed in installer -->
+        <Property Id="ApplicationFolderName" Value="WindVoice-Windows" />
+        <Property Id="WixAppFolder" Value="WixPerMachineFolder" />
+
+        <Feature Id="ProductFeature" 
+                 Title="WindVoice-Windows Application" 
+                 Description="Complete WindVoice-Windows voice dictation application with system integration."
+                 Level="1"
+                 ConfigurableDirectory="INSTALLFOLDER"
+                 AllowAdvertise="no"
+                 Display="expand"
+                 Absent="disallow">
+            <ComponentGroupRef Id="ProductComponents" />
+            <ComponentGroupRef Id="StartMenuComponents" />
+        </Feature>
+        
+        <!-- Optional auto-start feature -->
+        <Feature Id="AutoStartFeature"
+                 Title="Start with Windows"
+                 Description="Automatically start WindVoice-Windows when Windows starts (recommended)."
+                 Level="1"
+                 AllowAdvertise="no">
+            <ComponentRef Id="AutoStartRegistry" />
+        </Feature>
+        
+        <!-- Installation directories with proper default path -->
+        <Directory Id="TARGETDIR" Name="SourceDir">
+            <Directory Id="ProgramFilesFolder">
+                <Directory Id="INSTALLFOLDER" Name="WindVoice-Windows" />
+            </Directory>
+            <!-- Start Menu shortcut -->
+            <Directory Id="ProgramMenuFolder">
+                <Directory Id="ApplicationProgramsFolder" Name="WindVoice-Windows"/>
+            </Directory>
+        </Directory>
+
+        <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+            <!-- Main executable -->
+            <Component Id="MainExecutable" Guid="BE1236D6-9745-4E2A-8B9B-9FA7C232861C">
+                <File Id="WindVoiceExe" 
+                      Name="WindVoice-Windows.exe"
+                      Source="C:\Users\6113618\Github\WindVoice-Windows\dist\WindVoice-Windows.exe"
+                      KeyPath="yes" />
+            </Component>
+            
+            <!-- Application registry entries -->
+            <Component Id="AppRegistry" Guid="1F709666-201F-4165-95BE-84FA210CF3A1">
+                <RegistryKey Root="HKLM" Key="Software\WindVoice-Windows">
+                    <RegistryValue Name="InstallLocation" Type="string" Value="[INSTALLFOLDER]" KeyPath="yes" />
+                    <RegistryValue Name="Version" Type="string" Value="1.0.0.0" />
+                    <RegistryValue Name="Publisher" Type="string" Value="WindVoice Team" />
+                </RegistryKey>
+            </Component>
+        </ComponentGroup>
+        
+        <!-- Auto-start registry entry (separate component) -->
+        <Component Id="AutoStartRegistry" Directory="INSTALLFOLDER" Guid="EAE39D28-7D59-4274-A6E6-F67B78BA50F8">
+            <RegistryValue Root="HKCU" 
+                          Key="Software\Microsoft\Windows\CurrentVersion\Run"
+                          Name="WindVoice-Windows"
+                          Value="[INSTALLFOLDER]WindVoice-Windows.exe"
+                          Type="string" 
+                          KeyPath="yes" />
+        </Component>
+        
+        <ComponentGroup Id="StartMenuComponents" Directory="ApplicationProgramsFolder">
+            <!-- Start Menu shortcut -->
+            <Component Id="StartMenuShortcut" Guid="9732D3CA-46BC-4533-A124-4599A11F8985">
+                <Shortcut Id="ApplicationStartMenuShortcut"
+                         Name="WindVoice-Windows"
+                         Description="Voice dictation for Windows"
+                         Target="[INSTALLFOLDER]WindVoice-Windows.exe"
+                         WorkingDirectory="INSTALLFOLDER"/>
+                <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall"/>
+                <RegistryValue Root="HKCU" Key="Software\WindVoice-Windows" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
+            </Component>
+        </ComponentGroup>
+    </Product>
+</Wix>

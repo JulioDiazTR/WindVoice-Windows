@@ -48,6 +48,10 @@ class ConfigManager:
 
     def ensure_config_dir(self):
         self.config_dir.mkdir(exist_ok=True)
+    
+    def config_exists(self) -> bool:
+        """Check if configuration file exists"""
+        return self.config_file.exists()
 
     def load_config(self) -> WindVoiceConfig:
         if self._config:

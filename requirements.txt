@@ -1,8 +1,8 @@
-# Core Dependencies - WindVoice-Windows Sprint 2
+# Production Dependencies - WindVoice-Windows
 # Audio Processing
 sounddevice>=0.4.7
 soundfile>=0.12.1
-numpy>=1.24.0
+numpy>=1.26.0
 scipy>=1.11.0
 
 # Modern UI Framework
@@ -12,16 +12,15 @@ customtkinter>=5.2.2
 pynput>=1.7.7
 pystray>=0.19.4
 pyperclip>=1.8.2
-pyautogui>=0.9.54
 
-# HTTP Client for LiteLLM
-aiohttp>=3.9.1
+# HTTP Client for LiteLLM Integration
+aiohttp>=3.9.1,<4.0.0
 
-# Configuration Management
+# Configuration Management (TOML support)
 tomli-w>=1.0.0
 
 # Image Processing for System Tray Icons
-Pillow>=10.0.0
+Pillow>=10.0.0,<11.0.0
 
 # Windows-specific dependencies
-pywin32>=306  # Windows API access for better text field detection
+pywin32>=306; sys_platform == "win32"
