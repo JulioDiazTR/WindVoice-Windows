@@ -55,7 +55,8 @@
       "Read(/C:\\Users\\6113618\\.windvoice\\logs/**)",
       "Bash(timeout:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": []
