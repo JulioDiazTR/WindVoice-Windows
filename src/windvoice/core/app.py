@@ -15,6 +15,7 @@ from ..ui.menubar import SystemTrayService
 from ..ui.settings import SettingsWindow
 from ..ui.popup import show_smart_popup
 from ..ui.simple_visible_status import SimpleVisibleStatusManager
+from ..ui.setup_wizard import run_setup_if_needed
 from ..utils.logging import get_logger, WindVoiceLogger, setup_logging
 
 
@@ -58,23 +59,36 @@ class WindVoiceApp:
             # Initialize Tkinter root window for UI components
             self._initialize_ui_root()
             
-            # Load configuration
+            # Check if initial setup is needed
+            setup_launched = run_setup_if_needed(self.config_manager, self._on_setup_complete)
+            if setup_launched:
+                self.logger.info("Setup wizard launched - waiting for completion")
+                return  # Setup wizard will handle the rest
+            
+            # If setup was needed but couldn't be launched (e.g., headless environment)
+            # try to load config anyway - the setup wizard might have provided guidance
+            if not self.config_manager.config_exists():
+                self.logger.error("No configuration found and setup wizard could not run")
+                self.logger.error("Please create configuration manually or run in GUI environment")
+                raise ConfigurationError("Configuration required but setup wizard unavailable")
+                
+            # Continue with normal initialization
+            
+            # Load configuration (setup is complete)
             self.config = self.config_manager.load_config()
             
             # Configure theme based on loaded config
             self._apply_theme()
             
-            # Check if this is first run (no configuration)
+            # Double-check configuration validity
             if not self.config_manager.validate_config():
                 status = self.config_manager.get_config_status()
-                print("\nWindVoice - Configuration Required")
+                print("\nWindVoice - Configuration Invalid")
                 print("=" * 50)
-                print("Thomson Reuters LiteLLM credentials are not configured.")
+                print("Thomson Reuters LiteLLM credentials are not properly configured.")
                 print(f"Config file: {status['config_file_path']}")
-                print("\nTo configure WindVoice, please run:")
-                print("  python setup_config.py")
-                print("\nOr manually edit the config file with your LiteLLM credentials.")
-                raise ConfigurationError("LiteLLM configuration required. Run 'python setup_config.py' to configure.")
+                print("\nPlease check your configuration file or restart the application to run setup again.")
+                raise ConfigurationError("LiteLLM configuration is invalid or incomplete.")
             
             # Initialize services
             await self._initialize_services()
@@ -83,6 +97,39 @@ class WindVoiceApp:
             
         except Exception as e:
             raise WindVoiceError(f"Failed to initialize WindVoice: {e}")
+    
+    def _on_setup_complete(self):
+        """Called when setup wizard completes successfully"""
+        self.logger.info("Setup completed - initializing application")
+        
+        # Schedule the continuation of initialization in the asyncio loop
+        if self.event_loop:
+            asyncio.create_task(self._continue_initialization_after_setup())
+        else:
+            # If no event loop yet, we'll handle this in the start() method
+            self.logger.info("No event loop available yet - initialization will continue in start()")
+    
+    async def _continue_initialization_after_setup(self):
+        """Continue initialization after setup wizard completion"""
+        try:
+            # Load the newly created configuration
+            self.config = self.config_manager.load_config()
+            
+            # Apply theme
+            self._apply_theme()
+            
+            # Initialize services
+            await self._initialize_services()
+            
+            self.logger.info("Post-setup initialization completed successfully")
+            
+            # Start the application if we have all required components
+            if not self.running:
+                await self.start()
+                
+        except Exception as e:
+            self.logger.error(f"Failed to continue initialization after setup: {e}")
+            print(f"Error after setup: {e}")
     
     def _initialize_ui_root(self):
         """Initialize the root Tkinter window (hidden)"""
@@ -122,10 +169,17 @@ class WindVoiceApp:
         )
         self.logger.info("AudioRecorder initialized successfully")
         
-        # Transcription service
+        # Transcription service with performance optimization
         self.logger.info("Initializing TranscriptionService...")
         self.transcription_service = TranscriptionService(self.config.litellm)
-        self.logger.info("TranscriptionService initialized successfully")
+        
+        # PERFORMANCE: Pre-warm HTTP connection for faster first transcription
+        try:
+            await self.transcription_service.warm_up_connection()
+            self.logger.info("TranscriptionService initialized successfully with connection pre-warming")
+        except Exception as e:
+            self.logger.warning(f"TranscriptionService connection warm-up failed: {e}")
+            self.logger.info("TranscriptionService initialized successfully (without pre-warming)")
         
         # Text injection service
         self.logger.info("Initializing TextInjectionService...")
@@ -163,6 +217,13 @@ class WindVoiceApp:
     async def start(self):
         if self.running:
             self.logger.info("App already running, skipping start")
+            return
+        
+        # If config is not loaded (because setup was needed), wait for setup completion
+        if not self.config:
+            self.logger.info("Configuration not loaded - waiting for setup completion")
+            # Set event loop for setup completion callback
+            self.event_loop = asyncio.get_event_loop()
             return
             
         self.logger.info("Starting WindVoice application...")
@@ -421,19 +482,28 @@ class WindVoiceApp:
                 {"file_path": audio_file_path, "file_exists": Path(audio_file_path).exists()}
             )
             
-            # Advanced audio validation with detailed feedback
-            self.logger.info("Starting audio validation...")
+            # PERFORMANCE OPTIMIZATION: Single audio validation call
+            self.logger.info("Starting optimized audio validation...")
             quality_metrics = self.audio_recorder.get_quality_metrics(audio_file_path)
-            title, message = self.audio_recorder.get_validation_message(audio_file_path)
+            
+            # Get validation message from metrics (no additional file read)
+            if not quality_metrics.has_voice:
+                if quality_metrics.rms_level < 0.005:
+                    title, message = "No Voice Detected", "Your recording appears to be silent or too quiet. Please try again and speak clearly into your microphone."
+                else:
+                    title, message = "Audio Quality Low", "Voice detection failed due to low audio quality. Please try recording in a quieter environment."
+            else:
+                title, message = "Audio Valid", f"Voice detected with quality score: {quality_metrics.quality_score:.2f}"
             
             WindVoiceLogger.log_audio_workflow_step(
                 self.logger,
-                "Audio_Validation_Complete",
+                "Audio_Validation_Complete_OPTIMIZED",
                 {
                     "has_voice": quality_metrics.has_voice,
                     "quality_score": quality_metrics.quality_score,
                     "rms_level": quality_metrics.rms_level,
-                    "duration": quality_metrics.duration
+                    "duration": quality_metrics.duration,
+                    "single_validation": True
                 }
             )
             

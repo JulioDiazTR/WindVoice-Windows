@@ -18,7 +18,7 @@ class LiteLLMConfig:
 class AppConfig:
     hotkey: str = "ctrl+shift+space"
     audio_device: str = "default"
-    sample_rate: int = 44100
+    sample_rate: int = 16000  # PERFORMANCE: Optimized for Whisper (16kHz native)
 
 
 @dataclass
@@ -48,6 +48,10 @@ class ConfigManager:
 
     def ensure_config_dir(self):
         self.config_dir.mkdir(exist_ok=True)
+    
+    def config_exists(self) -> bool:
+        """Check if configuration file exists"""
+        return self.config_file.exists()
 
     def load_config(self) -> WindVoiceConfig:
         if self._config:
@@ -84,7 +88,7 @@ class ConfigManager:
             "app": {
                 "hotkey": "ctrl+shift+space",
                 "audio_device": "default", 
-                "sample_rate": 44100
+                "sample_rate": 16000
             },
             "ui": {
                 "theme": "dark",

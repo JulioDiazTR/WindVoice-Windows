@@ -29,16 +29,20 @@ src/windvoice/
 
 ## Development Commands
 
-Since this is an early-stage project without implemented build system yet:
-
 ### Project Setup
 ```bash
-# Install dependencies (when requirements.txt exists)
+# Development installation (recommended for development)
+pip install -e .
+
+# Or install dependencies separately
 pip install -r requirements.txt
-pip install -r requirements-dev.txt
+pip install -r requirements-dev.txt  # For development tools
 
 # Run application entry point
 python main.py
+
+# Or use the installed script (after pip install -e .)
+windvoice
 ```
 
 ### Testing
@@ -47,13 +51,45 @@ python main.py
 pytest tests/
 pytest tests/unit/          # Unit tests only  
 pytest tests/integration/   # Integration tests only
-python scripts/test.py      # Test runner with coverage
+pytest --cov=windvoice      # With coverage
 ```
 
 ### Build and Distribution
 ```bash
-# Build executable (when implemented)
-python scripts/build.py    # PyInstaller build script
+# RECOMMENDED: Build MSI installer (professional Windows installation)
+python build.py
+
+# Alternative: Install WiX Toolset first (if not installed)
+python install_wix.py
+
+# Build wheel for distribution (may fail on Python 3.13)
+python -m build
+
+# Manual PyInstaller build (creates portable .exe only)
+pyinstaller WindVoice.spec --clean --noconfirm
+
+# Install from built wheel (if build succeeds)
+pip install dist/windvoice_windows-1.0.0-py3-none-any.whl
+```
+
+### Installation for End Users
+```bash
+# RECOMMENDED: Install from MSI installer (creates Start Menu shortcuts, auto-start, proper uninstall)
+# 1. Run: python build.py
+# 2. Double-click: installer/WindVoice-Windows-Installer.msi
+
+# Alternative: Install from source (development/testing)
+pip install .
+
+# Install with development tools
+pip install .[dev]
+
+# Install from PyPI (when published)
+pip install windvoice-windows
+
+# Emergency configuration tools (for troubleshooting)
+WindVoice-Windows.exe --check-config    # Check configuration status
+WindVoice-Windows.exe --create-config   # Create emergency configuration template
 ```
 
 ## Thomson Reuters LiteLLM Integration

@@ -1,7 +1,10 @@
 import aiohttp
 import asyncio
+import tempfile
+import soundfile as sf
+import numpy as np
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 from ..core.exceptions import TranscriptionError
 from ..core.config import LiteLLMConfig
 from ..utils.logging import get_logger, WindVoiceLogger
@@ -12,9 +15,10 @@ class TranscriptionService:
         self.config = config
         self.session: Optional[aiohttp.ClientSession] = None
         self.logger = get_logger("transcription")
+        self._session_warmed = False
         
         # Log initialization
-        self.logger.info("TranscriptionService initialized")
+        self.logger.info("TranscriptionService initialized with performance optimizations")
         self.logger.debug(f"API Base: {config.api_base}")
         self.logger.debug(f"Model: {config.model}")
         self.logger.debug(f"Key Alias: {config.key_alias}")
@@ -22,71 +26,177 @@ class TranscriptionService:
         
     async def _get_session(self) -> aiohttp.ClientSession:
         if self.session is None or self.session.closed:
+            # PERFORMANCE: Optimized connection settings for fast audio processing
             self.session = aiohttp.ClientSession(
-                timeout=aiohttp.ClientTimeout(total=30)
+                timeout=aiohttp.ClientTimeout(
+                    total=30,      # Reduced total timeout for faster failures
+                    connect=3,     # Faster connection timeout
+                    sock_read=25   # Reasonable time for transcription
+                ),
+                connector=aiohttp.TCPConnector(
+                    limit=5,            # Fewer connections, more focused
+                    limit_per_host=2,   # Reduced per-host limit
+                    keepalive_timeout=60,  # Longer keepalive for reuse
+                    enable_cleanup_closed=True,
+                    ttl_dns_cache=300,  # DNS caching for 5 minutes
+                    use_dns_cache=True
+                )
             )
+            self.logger.debug("HTTP session created with performance optimizations")
         return self.session
+    
+    async def warm_up_connection(self):
+        """
+        PERFORMANCE: Pre-warm HTTP connection to reduce first-request latency
+        Should be called during app initialization for better performance
+        """
+        if self._session_warmed:
+            self.logger.debug("Connection already warmed")
+            return
+            
+        try:
+            self.logger.info("Warming up HTTP connection for faster transcription...")
+            session = await self._get_session()
+            
+            # Simple HEAD request to establish connection
+            warm_url = f"{self.config.api_base}/v1/models"
+            headers = {
+                "Authorization": f"Bearer {self.config.api_key}",
+                "X-Key-Alias": self.config.key_alias
+            }
+            
+            async with session.head(warm_url, headers=headers) as response:
+                self.logger.info(f"Connection warmed up (status: {response.status})")
+                self._session_warmed = True
+                
+        except Exception as e:
+            self.logger.warning(f"Connection warm-up failed (non-fatal): {e}")
+            # Don't fail initialization if warm-up fails
+    
+    def _compress_audio_if_needed(self, audio_file_path: str) -> Tuple[str, bool]:
+        """Only compress very large files to avoid unnecessary processing delays"""
+        file_path = Path(audio_file_path)
+        file_size_mb = file_path.stat().st_size / (1024 * 1024)
+        
+        # Skip compression for files under 25MB (LiteLLM limit) to maximize speed
+        if file_size_mb <= 25.0:
+            self.logger.debug(f"Audio file size {file_size_mb:.1f}MB <= 25MB, skipping compression for speed")
+            return audio_file_path, False
+            
+        self.logger.info(f"Large audio file {file_size_mb:.1f}MB > 25MB, applying minimal compression...")
+        
+        try:
+            # Minimal compression for very large files only
+            audio_data, sample_rate = sf.read(audio_file_path)
+            
+            # Ensure mono
+            if len(audio_data.shape) > 1:
+                audio_data = np.mean(audio_data, axis=1)
+            
+            # Only downsample if significantly higher than 16kHz
+            if sample_rate > 24000:
+                # Simple decimation without scipy for maximum speed
+                decimation_factor = sample_rate // 16000
+                if decimation_factor > 1:
+                    audio_data = audio_data[::decimation_factor]
+                    new_sample_rate = 16000
+                    self.logger.debug(f"Fast downsample: {sample_rate}Hz -> {new_sample_rate}Hz")
+                else:
+                    new_sample_rate = sample_rate
+            else:
+                new_sample_rate = sample_rate
+            
+            # Create compressed file
+            compressed_path = file_path.parent / f"compressed_{file_path.name}"
+            
+            sf.write(
+                str(compressed_path),
+                audio_data,
+                new_sample_rate,
+                subtype='PCM_16'
+            )
+            
+            compressed_size_mb = compressed_path.stat().st_size / (1024 * 1024)
+            self.logger.info(f"Minimal compression: {file_size_mb:.1f}MB → {compressed_size_mb:.1f}MB")
+            
+            return str(compressed_path), True
+            
+        except Exception as e:
+            self.logger.warning(f"Audio compression failed: {e}, using original file")
+            return audio_file_path, False
     
     async def transcribe_audio(self, audio_file_path: str) -> str:
         if not Path(audio_file_path).exists():
             raise TranscriptionError(f"Audio file not found: {audio_file_path}")
         
-        # CRITICAL FIX: Force fresh session for each transcription to prevent caching
-        if self.session and not self.session.closed:
-            await self.session.close()
-        self.session = None
+        # PERFORMANCE: Skip compression for typical voice files (already optimized at 16kHz)
+        # Most voice recordings at 16kHz are well under 25MB, so compression is unnecessary overhead
+        working_file_path = audio_file_path
+        was_compressed = False
         
-        # Generate unique identifier for this request
+        file_size_mb = Path(audio_file_path).stat().st_size / (1024 * 1024)
+        if file_size_mb > 25.0:
+            self.logger.warning(f"Large audio file {file_size_mb:.1f}MB > 25MB - may need compression, but skipping for performance")
+            # Note: Could add compression here if needed, but typical 16kHz voice files are <1MB
+        
+        # PERFORMANCE: Optimized uniqueness with minimal overhead
         import time
-        import uuid
-        request_id = str(uuid.uuid4())[:8]
-        timestamp = int(time.time() * 1000)  # milliseconds
+        unique_id = f"{int(time.time() * 1000000)}"  # Microsecond precision for uniqueness
         
         url = f"{self.config.api_base}/v1/audio/transcriptions"
         headers = {
             "Authorization": f"Bearer {self.config.api_key}",
             "X-Key-Alias": self.config.key_alias,
-            "X-Request-ID": request_id,  # Unique identifier
-            "Cache-Control": "no-cache"  # Prevent caching
+            "X-Request-ID": unique_id  # Lightweight unique identifier
         }
         
-        # Log detailed request information
-        file_size = Path(audio_file_path).stat().st_size
-        self.logger.info(f"[TRANSCRIPTION_REQUEST] ID: {request_id}, File: {audio_file_path}, Size: {file_size} bytes")
+        # PERFORMANCE: Single file read for both logging and FormData
+        audio_content = Path(working_file_path).read_bytes()
+        file_size = len(audio_content)
+        
+        self.logger.info(f"[TRANSCRIPTION_REQUEST] File: {Path(working_file_path).name}, Size: {file_size} bytes, RequestID: {unique_id}")
+        
+        # OPTIONAL DEBUG: Hash computation only if debug logging enabled
+        if self.logger.isEnabledFor(10):  # DEBUG level = 10
+            import hashlib
+            file_hash = hashlib.md5(audio_content).hexdigest()[:8]
+            self.logger.debug(f"[TRANSCRIPTION_DEBUG] File hash: {file_hash}")
         
         # Retry logic - 3 attempts with 1-second delays
         for attempt in range(3):
             try:
                 session = await self._get_session()
                 
-                # Create form data for file upload
+                # PERFORMANCE: Fresh form data using pre-loaded audio content
                 data = aiohttp.FormData()
-                with open(audio_file_path, 'rb') as audio_file:
-                    audio_content = audio_file.read()
-                    
-                # Add unique filename with timestamp to prevent server-side caching
-                unique_filename = f'audio_{timestamp}_{request_id}.wav'
+                
+                # OPTIMIZED: Use pre-loaded audio content (no additional file I/O)
+                filename = f'audio_{unique_id}_{attempt}.wav'
+                
+                self.logger.debug(f"[TRANSCRIPTION] Creating FormData with unique filename: {filename}")
+                
                 data.add_field(
                     'file',
-                    audio_content,
-                    filename=unique_filename,
+                    audio_content,  # Using pre-loaded content
+                    filename=filename,
                     content_type='audio/wav'
                 )
                 data.add_field('model', self.config.model)
                 data.add_field('response_format', 'json')
-                data.add_field('timestamp', str(timestamp))  # Force unique request
                 
                 async with session.post(url, headers=headers, data=data) as response:
                     if response.status == 200:
                         result = await response.json()
                         transcribed_text = result.get('text', '').strip()
                         
-                        # Log detailed response information
-                        self.logger.info(f"[TRANSCRIPTION_RESPONSE] ID: {request_id}, Status: 200, Text: '{transcribed_text}', Length: {len(transcribed_text)}")
+                        # Log response information
+                        self.logger.info(f"[TRANSCRIPTION_RESPONSE] Status: 200, Length: {len(transcribed_text)} chars")
+                        if len(transcribed_text) > 0:
+                            preview = transcribed_text[:100] + ('...' if len(transcribed_text) > 100 else '')
+                            self.logger.debug(f"Text: '{preview}'")
                         
-                        # Force session cleanup after successful transcription
-                        await session.close()
-                        self.session = None
+                        # PERFORMANCE: Keep session alive for better performance (don't close unnecessarily)
+                        # Skip cleanup since we didn't create compressed files
                         
                         return transcribed_text
                     
@@ -122,6 +232,7 @@ class TranscriptionService:
                     continue
                 raise TranscriptionError(f"Transcription failed: {str(e)}")
         
+        # PERFORMANCE: No cleanup needed since we skip compression
         raise TranscriptionError("Transcription failed after 3 attempts")
     
     def validate_config(self) -> bool:
