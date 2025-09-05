@@ -17,7 +17,8 @@
       "Bash(del test_robust_simple.py)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:docs.litellm.ai)",
-      "WebFetch(domain:litellm.int.thomsonreuters.com)"
+      "WebFetch(domain:litellm.int.thomsonreuters.com)",
+      "Bash(git merge:*)"
     ],
     "deny": [],
     "ask": []
