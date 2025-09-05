@@ -3,7 +3,7 @@
 ## 📋 Product Overview
 
 **Product Name:** WindVoice-Windows  
-**Version:** 1.0.0 (Sprint 2 - MVP Complete)  
+**Version:** 1.0.0 (MVP Complete)  
 **Platform:** Windows 10+  
 **Tech Stack:** 100% Python (CustomTkinter + Modern Audio Stack)  
 **Current Status:** Implemented and Functional  
@@ -108,51 +108,9 @@ A **simple, fast, and reliable** Windows voice dictation application using 100% 
 - **Native performance:** Direct Windows OS integration without web layer overhead
 - **Windows-optimized:** Tailored for Windows 10+ environment
 
-### Project Structure (✅ IMPLEMENTED)
+### Project Structure 
 
-```
-WindVoice-Windows/
-├── src/
-│   ├── windvoice/
-│   │   ├── __init__.py
-│   │   ├── core/
-│   │   │   ├── __init__.py
-│   │   │   ├── app.py                    # ✅ Main application controller
-│   │   │   ├── config.py                 # ✅ TOML configuration management  
-│   │   │   └── exceptions.py             # ✅ Custom exception classes
-│   │   ├── services/
-│   │   │   ├── __init__.py
-│   │   │   ├── audio.py                  # ✅ Audio recording and validation
-│   │   │   ├── hotkeys.py                # ✅ Global hotkey handling (pynput)
-│   │   │   ├── injection.py              # ✅ Windows text injection service
-│   │   │   └── transcription.py          # ✅ LiteLLM integration with aiohttp
-│   │   ├── ui/
-│   │   │   ├── __init__.py
-│   │   │   ├── menubar.py                # ✅ System tray (pystray) 
-│   │   │   ├── popup.py                  # ✅ Smart transcription popup
-│   │   │   ├── settings.py               # ✅ CustomTkinter settings window
-│   │   │   ├── status_dialog.py          # ✅ Status dialog variations
-│   │   │   ├── simple_status_dialog.py   # ✅ Simple status feedback
-│   │   │   ├── simple_visible_status.py  # ✅ Non-focusable status overlay
-│   │   │   └── robust_status_dialog.py   # ✅ Robust status implementation
-│   │   └── utils/
-│   │       ├── __init__.py
-│   │       ├── windows.py                # ✅ Windows text field detection API
-│   │       ├── audio_validation.py       # ✅ RMS level & silence detection
-│   │       └── logging.py                # ✅ Comprehensive logging system
-├── docs/
-│   ├── README.md                         # Project overview  
-│   ├── DEVELOPMENT.md                    # Development setup guide
-│   ├── ARCHITECTURE.md                   # Technical architecture details
-│   ├── PRD.md                           # ✅ Product requirements document
-│   └── API.md                           # ✅ API documentation
-├── requirements.txt                      # ✅ Production dependencies
-├── main.py                              # ✅ Application entry point
-├── run_windvoice.py                     # ✅ Alternative entry point
-├── test_text_detection.py              # ✅ Text detection testing
-├── CLAUDE.md                            # ✅ Development guidance
-└── .gitignore                           # Git ignore rules
-```
+See the [Architecture Documentation](ARCHITECTURE.md) for detailed project structure and component organization.
 
 ---
 
@@ -242,72 +200,60 @@ async def _handle_transcription_result(self, text: str):
 
 ## 📊 Development Status & Implementation
 
-### Current Status: Sprint 2 Complete ✅
+### Current Implementation Status ✅
 
-## Sprint 1: Core MVP Foundation ✅ COMPLETED
+## Core Features Implemented ✅
 
-### Epic 1.1: Core Foundation ✅
-| Task | Description | Status | Implementation |
-|------|-------------|--------|----------------|
-| Project Structure | Python package structure | ✅ DONE | Full src/windvoice/ structure |
-| Configuration System | TOML config for API credentials | ✅ DONE | ConfigManager with validation |
-| System Tray Setup | pystray menu bar presence | ✅ DONE | SystemTrayService with icons |
-| Global Hotkeys | pynput hotkey registration | ✅ DONE | HotkeyManager with async callbacks |
+### Foundation Components ✅
+| Component | Description | Status | Implementation |
+|-----------|-------------|--------|----------------|
+| Project Structure | Python package structure | ✅ COMPLETE | Full src/windvoice/ structure |
+| Configuration System | TOML config for API credentials | ✅ COMPLETE | ConfigManager with validation |
+| System Tray Integration | pystray menu bar presence | ✅ COMPLETE | SystemTrayService with icons |
+| Global Hotkeys | pynput hotkey registration | ✅ COMPLETE | HotkeyManager with async callbacks |
 
-### Epic 1.2: Audio → Text Pipeline ✅
-| Task | Description | Status | Implementation |
-|------|-------------|--------|----------------|
-| Audio Recording | sounddevice implementation | ✅ DONE | AudioRecorder with quality metrics |
-| WAV File Export | High-quality 44.1kHz output | ✅ DONE | Optimized for Whisper processing |
-| Audio Validation | RMS level & silence detection | ✅ DONE | Advanced validation with thresholds |
-| LiteLLM Integration | aiohttp POST to proxy | ✅ DONE | TranscriptionService with retry logic |
-| Smart Error Handling | User-friendly notifications | ✅ DONE | System tray + status overlay feedback |
+### Audio Processing Pipeline ✅
+| Component | Description | Status | Implementation |
+|-----------|-------------|--------|----------------|
+| Audio Recording | sounddevice implementation | ✅ COMPLETE | AudioRecorder with quality metrics |
+| WAV File Export | High-quality 44.1kHz output | ✅ COMPLETE | Optimized for Whisper processing |
+| Audio Validation | RMS level & silence detection | ✅ COMPLETE | Advanced validation with thresholds |
+| LiteLLM Integration | aiohttp POST to proxy | ✅ COMPLETE | TranscriptionService with retry logic |
+| Error Handling | User-friendly notifications | ✅ COMPLETE | System tray + status overlay feedback |
 
-### Epic 1.3: Smart Text Injection ✅
-| Task | Description | Status | Implementation |
-|------|-------------|--------|----------------|
-| Text Injection Service | pynput keyboard automation | ✅ DONE | Multiple injection methods |
-| Active Field Detection | Windows API text field detection | ✅ DONE | WindowsTextFieldDetector class |
-| Smart Popup | Fallback popup with copy/paste | ✅ DONE | show_smart_popup with context awareness |
-| Integration Testing | End-to-end workflow validation | ✅ DONE | test_text_detection.py |
+### Text Injection System ✅
+| Component | Description | Status | Implementation |
+|-----------|-------------|--------|----------------|
+| Text Injection Service | pynput keyboard automation | ✅ COMPLETE | Multiple injection methods |
+| Active Field Detection | Windows API text field detection | ✅ COMPLETE | WindowsTextFieldDetector class |
+| Smart Popup | Fallback popup with copy/paste | ✅ COMPLETE | show_smart_popup with context awareness |
 
-## Sprint 2: Enhanced UI & Polish ✅ COMPLETED
+### User Interface ✅
+| Component | Description | Status | Implementation |
+|-----------|-------------|--------|----------------|
+| Settings Window | CustomTkinter configuration GUI | ✅ COMPLETE | SettingsWindow with theme support |
+| Status Feedback System | Visual recording/processing indicators | ✅ COMPLETE | Multiple status dialog implementations |
+| Non-focusable Overlay | Preserve text field focus | ✅ COMPLETE | SimpleVisibleStatusManager with Win32 API |
+| Theme System | Dark/Light mode integration | ✅ COMPLETE | Integrated with CustomTkinter themes |
 
-### Epic 2.1: Advanced UI Components ✅
-| Task | Description | Status | Implementation |
-|------|-------------|--------|----------------|
-| Settings Window | CustomTkinter configuration GUI | ✅ DONE | SettingsWindow with theme support |
-| Status Feedback System | Visual recording/processing indicators | ✅ DONE | Multiple status dialog implementations |
-| Non-focusable Overlay | Preserve text field focus | ✅ DONE | SimpleVisibleStatusManager with Win32 API |
-| Theme System | Dark/Light mode integration | ✅ DONE | Integrated with CustomTkinter themes |
+**Implementation Status**: Fully functional voice dictation application ready for daily use
 
-### Epic 2.2: Smart Features ✅
-| Task | Description | Status | Implementation |
-|------|-------------|--------|----------------|
-| Windows Text Field Detection | Enhanced text field detection | ✅ DONE | WindowsTextFieldDetector with caching |
-| Audio Level Monitoring | Real-time recording feedback | ✅ DONE | Level monitoring with visual updates |
-| Smart Notifications | Context-aware user feedback | ✅ DONE | System tray notifications with emojis |
-| Error Recovery | Graceful error handling | ✅ DONE | Audio file debugging & user notifications |
+## Future Enhancements (Potential Improvements)
 
-**Current Implementation Status**: Fully functional voice dictation application with advanced features
+### Build & Distribution 🚀
+| Task | Description | Priority |
+|------|-------------|----------|
+| PyInstaller Setup | Single executable build configuration | High |
+| Icon & Assets | Proper icon integration and asset bundling | Medium |
+| Windows Installer | MSI installer for easy distribution | Medium |
 
-## Future Enhancements (Sprint 3 - Planned)
-
-### Epic 3.1: Build & Packaging 🚀
-| Task | Description | Priority | Status |
-|------|-------------|----------|---------|
-| PyInstaller Setup | Single executable build configuration | High | 📋 PLANNED |
-| Icon & Assets | Proper icon integration and asset bundling | Medium | 📋 PLANNED |
-| Windows Installer | MSI or NSIS installer for easy distribution | Medium | 📋 PLANNED |
-| Auto-updater | Automatic update mechanism | Low | 📋 PLANNED |
-
-### Epic 3.2: Advanced Features 🔬
-| Task | Description | Priority | Status |
-|------|-------------|----------|---------|
-| Performance Optimization | Memory usage and startup time tuning | Medium | 📋 PLANNED |
-| Multiple Audio Formats | Support MP3, FLAC for specialized use cases | Low | 📋 PLANNED |
-| Plugin System | Extensible architecture for custom integrations | Low | 📋 PLANNED |
-| Advanced Logging | User-configurable log levels and rotation | Low | 📋 PLANNED |
+### Additional Features 🔬
+| Task | Description | Priority |
+|------|-------------|----------|
+| Test Suite | Comprehensive automated testing | High |
+| Performance Optimization | Memory usage and startup time tuning | Medium |
+| Multiple Audio Formats | Support additional audio formats | Low |
+| Advanced Configuration | More detailed user preferences | Low |
 
 ---
 
@@ -356,36 +302,9 @@ async def _handle_transcription_result(self, text: str):
 
 ## ⚙️ Configuration & LiteLLM Setup
 
-### Configuration File (~/.windvoice/config.toml) ✅ IMPLEMENTED
-```toml
-[litellm]
-# Thomson Reuters LiteLLM Proxy Configuration
-# REQUIRED: Configure via Settings window or manually
-api_key = ""           # Your virtual API key (sk-xxxxx)
-api_base = ""          # Proxy URL (https://your-proxy.com)
-key_alias = ""         # Your user identifier for usage tracking
-model = "whisper-1"    # OpenAI Whisper model via proxy
+### Configuration
 
-[app]
-# Application Settings - configurable via Settings GUI
-hotkey = "ctrl+shift+space"    # Global hotkey combination
-audio_device = "default"       # Audio input device (dropdown in Settings)
-sample_rate = 44100            # Audio sample rate (optimized for Whisper)
-
-[ui]
-# User Interface Settings - configurable via Settings GUI
-theme = "dark"                 # UI theme (dark/light toggle)
-window_position = "center"     # Window position preference
-show_tray_notifications = true # System tray notifications enabled
-```
-
-### Environment Variables (Alternative)
-```bash
-# Alternative to config.toml - use environment variables
-export LITELLM_API_KEY="sk-your-key-here"
-export LITELLM_API_BASE="https://your-proxy.com"
-export KEY_ALIAS="your-username"
-```
+See the [Installation Guide](INSTALLER_GUIDE.md) for complete configuration instructions and the [API Documentation](API.md) for LiteLLM integration details.
 
 ### Security Best Practices
 - **Never hardcode** API keys in source code
@@ -509,17 +428,16 @@ else:
 
 ---
 
-**Document Version**: 2.0  
+**Document Version**: 3.0  
 **Created**: 2025-01-09  
 **Last Updated**: 2025-01-29  
 **Target Audience**: Development team and stakeholders  
-**Next Review**: Before Sprint 3 implementation  
-**Status**: ✅ MVP COMPLETE - Sprint 2 functionality fully implemented
+**Status**: ✅ MVP COMPLETE - Core functionality fully implemented and ready for use
 
 **Key Success Factors Achieved**: 
-- ✅ **SuperWhisper-inspired simplicity** - Clean system tray presence with instant hotkey activation
+- ✅ **Simple system tray integration** - Clean system tray presence with instant hotkey activation
 - ✅ **Seamless text injection** - WindowsTextFieldDetector with smart popup fallback  
 - ✅ **Minimal user interface complexity** - Non-focusable overlays preserve workflow
 - ✅ **Production-ready reliability** - Comprehensive error handling and audio validation
 
-**Current Implementation**: Fully functional voice dictation application ready for daily use with advanced Windows integration.
+**Current Status**: Fully functional voice dictation application ready for daily use with complete Windows integration.

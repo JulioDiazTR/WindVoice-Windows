@@ -4,7 +4,7 @@
 
 ### Prerequisites
 
-- **Python 3.11+** (recommended: 3.11 or 3.12)
+- **Python 3.10+** (recommended: 3.11 or 3.12)
 - **Windows 10+** (required for Windows-specific dependencies)
 - **Git** for version control
 - **Visual Studio Code** (recommended IDE)
@@ -25,16 +25,15 @@
 
 3. **Install dependencies**
    ```bash
+   # Development installation (recommended)
+   pip install -e .[dev]
+   
+   # Or install separately
    pip install -r requirements.txt
+   pip install -r requirements-dev.txt
    ```
 
-4. **Install development dependencies** (when available)
-   ```bash
-   # Development dependencies not yet implemented
-   # pip install -r requirements-dev.txt
-   ```
-
-5. **Configure environment**
+4. **Configure environment**
    ```bash
    # Configuration will be created automatically on first run
    # Edit ~/.windvoice/config.toml with your LiteLLM credentials
@@ -539,11 +538,11 @@ pip freeze > requirements.txt
 
 #### Build Process
 
+See the [Installation Guide](INSTALLER_GUIDE.md) for complete build and distribution instructions.
+
 ```bash
-# Build system not yet implemented
-# Planned for Sprint 3:
-# pip install pyinstaller
-# python scripts/build.py  # (to be created)
+# Build complete distribution
+python build.py
 ```
 
 ### Troubleshooting Common Issues
