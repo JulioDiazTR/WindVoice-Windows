@@ -44,7 +44,22 @@ WindVoice-Windows is a **100% Python** voice dictation application designed for 
 
 Choose your preferred installation method:
 
-#### Option 1: MSI Installer (Recommended)
+#### Option 1: Portable Executable (Recommended)
+
+1. **Download or Build EXE**
+   ```bash
+   # Build portable executable
+   pyinstaller WindVoice.spec --clean --noconfirm
+   ```
+
+2. **Run**
+   - Navigate to `dist/` folder
+   - Double-click `WindVoice-Windows.exe`
+   - No installation required - runs immediately
+
+> **Why EXE is recommended:** Due to organizational permission policies, MSI installers may install successfully but cannot be uninstalled without admin privileges, potentially leaving the system in a blocked state.
+
+#### Option 2: MSI Installer (Alternative)
 
 1. **Download or Build MSI**
    ```bash
@@ -57,7 +72,9 @@ Choose your preferred installation method:
    - Follow installation wizard
    - Launch from Start Menu
 
-#### Option 2: Python Development
+> **Note:** MSI installation may require admin privileges for uninstallation. Use only if you have full admin access or prefer system integration.
+
+#### Option 3: Python Development
 
 ```bash
 # Clone and setup

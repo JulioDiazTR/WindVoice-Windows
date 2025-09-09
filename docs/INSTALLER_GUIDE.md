@@ -6,9 +6,41 @@ WindVoice-Windows provides multiple installation methods with robust error handl
 
 ## Installation Methods
 
-### 1. MSI Installer (Recommended)
+### 1. Portable Executable (Recommended)
 
-The MSI installer provides a professional Windows installation experience with setup wizard, license agreement, and proper system integration.
+The standalone executable provides immediate deployment without installation requirements or admin privilege concerns.
+
+#### Building the Portable Executable
+
+```bash
+# Clone and build
+git clone <repository-url>
+cd WindVoice-Windows
+
+# Build standalone executable
+pyinstaller WindVoice.spec --clean --noconfirm
+```
+
+#### Running the Executable
+
+1. **Navigate to** `dist/` folder
+2. **Double-click** `WindVoice-Windows.exe`
+3. **No installation required** - runs immediately
+
+#### Portable Executable Features
+
+- ✅ **No Installation Required**: Run directly from any folder
+- ✅ **No Admin Privileges**: Bypass organizational permission restrictions
+- ✅ **Portable Deployment**: Move to any Windows system
+- ✅ **No Uninstall Issues**: Simply delete when no longer needed
+- ✅ **Emergency Configuration**: Built-in configuration tools
+- ✅ **Corporate Friendly**: Avoid installation policy conflicts
+
+> **Why Portable EXE is recommended:** Due to organizational permission policies, MSI installers may install successfully but cannot be uninstalled without admin privileges, potentially leaving systems in a blocked state. The portable executable avoids these issues entirely.
+
+### 2. MSI Installer (Alternative)
+
+The MSI installer provides a professional Windows installation experience but may require admin privileges for uninstallation.
 
 #### Building the MSI Installer
 
@@ -61,20 +93,9 @@ The MSI installer requires WiX Toolset to compile Windows Installer packages:
 - ✅ **Upgrade Support**: In-place upgrades for future versions
 - ✅ **Registry Integration**: Proper Windows application registration
 
-### 2. Standalone Executable
+### 2. MSI Installer Features (Advanced Users)
 
-For portable deployment without installation requirements.
-
-```bash
-# After building
-dist\WindVoice-Windows.exe
-```
-
-**Benefits:**
-- No installation required
-- Portable deployment
-- Single file distribution
-- Includes emergency configuration tools
+> **⚠️ Warning:** MSI installation may require admin privileges for uninstallation. Use only if you have full admin access or prefer system integration.
 
 ### 3. Python Package (Development)
 
