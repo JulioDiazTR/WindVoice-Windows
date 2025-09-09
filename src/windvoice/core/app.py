@@ -50,6 +50,7 @@ class WindVoiceApp:
         self.recording = False
         self.event_loop: Optional[asyncio.AbstractEventLoop] = None
         self.running = False
+        self._template_config_detected = False
         
         # Real-time feedback
         self.level_monitor_task: Optional[asyncio.Task] = None
@@ -65,8 +66,7 @@ class WindVoiceApp:
                 self.logger.info("Setup wizard launched - waiting for completion")
                 return  # Setup wizard will handle the rest
             
-            # If setup was needed but couldn't be launched (e.g., headless environment)
-            # check if a template config was created and try to load it
+            # Setup was not needed or failed - try to load existing config
             if not self.config_manager.config_exists():
                 self.logger.error("No configuration found and setup wizard could not run")
                 self.logger.error("A template configuration may have been created in ~/.windvoice/config.toml")
@@ -80,31 +80,25 @@ class WindVoiceApp:
                 print("="*50)
                 return  # Exit gracefully instead of raising exception
             
-            # Check if config exists now but is a template (needs editing)
-            if self.config_manager.config_exists():
-                try:
-                    # Try to load the config to see if it's valid
-                    temp_config = self.config_manager.load_config()
-                    if (temp_config.litellm.api_key == "sk-your-litellm-api-key-here" or 
-                        "placeholder" in temp_config.litellm.api_key.lower() or
-                        "your-" in temp_config.litellm.api_key):
-                        self.logger.error("Template configuration detected - needs editing")
-                        print("\n" + "="*50)
-                        print("CONFIGURATION NEEDS EDITING")
-                        print("="*50)
-                        print("A template configuration was created but needs your actual credentials.")
-                        print(f"Please edit: {self.config_manager.config_file}")
-                        print("Replace the placeholder values with your real Thomson Reuters LiteLLM credentials.")
-                        print("="*50)
-                        return  # Exit gracefully
-                except Exception as e:
-                    self.logger.error(f"Error loading configuration: {e}")
-                    return
+            # Load configuration and check if it's template or valid
+            try:
+                self.config = self.config_manager.load_config()
+                
+                # Check if this is a template configuration
+                if (self.config.litellm.api_key == "sk-your-litellm-api-key-here" or 
+                    "placeholder" in self.config.litellm.api_key.lower() or
+                    "your-" in self.config.litellm.api_key):
+                    self.logger.info("Template configuration detected - will prompt user to configure")
+                    self._template_config_detected = True
+                else:
+                    self._template_config_detected = False
+                    
+            except Exception as e:
+                self.logger.error(f"Error loading configuration: {e}")
+                return
                 
             # Continue with normal initialization
-            
-            # Load configuration (setup is complete)
-            self.config = self.config_manager.load_config()
+            # Config already loaded above in the template check logic
             
             # Configure theme based on loaded config
             self._apply_theme()
@@ -233,7 +227,7 @@ class WindVoiceApp:
         
         # Settings window
         self.logger.info("Initializing SettingsWindow...")
-        self.settings_window = SettingsWindow(self.config_manager, self.audio_recorder)
+        self.settings_window = SettingsWindow(self.config_manager, self.audio_recorder, self._on_config_saved)
         self.logger.info("SettingsWindow initialized successfully")
         
         # Status dialog for visual feedback
@@ -271,23 +265,43 @@ class WindVoiceApp:
             
             # Show startup notification
             if self.config.ui.show_tray_notifications:
-                self.logger.info("Showing startup notification...")
-                self.system_tray.show_notification(
-                    "WindVoice Started",
-                    f"Voice dictation is now running in the background. Press {self.config.app.hotkey} to start recording from any application."
-                )
-                
-                # Show a secondary notification after a brief delay to confirm readiness
-                async def show_ready_notification():
-                    await asyncio.sleep(2.0)  # Wait 2 seconds
-                    if self.running and self.system_tray:
-                        self.system_tray.show_notification(
-                            "WindVoice Ready",
-                            "Voice dictation is ready and listening for hotkey activation."
-                        )
-                
-                # Schedule the ready notification
-                asyncio.create_task(show_ready_notification())
+                if self._template_config_detected:
+                    # Show configuration needed notification
+                    self.logger.info("Showing template configuration notification...")
+                    self.system_tray.show_notification(
+                        "WindVoice - Configuration Required",
+                        "Please configure your Thomson Reuters LiteLLM credentials. Right-click the tray icon and select 'Settings' to get started."
+                    )
+                    
+                    # Show follow-up notification with more details
+                    async def show_config_reminder():
+                        await asyncio.sleep(3.0)  # Wait 3 seconds
+                        if self.running and self.system_tray and self._template_config_detected:
+                            self.system_tray.show_notification(
+                                "Setup Required",
+                                "Voice dictation will not work until you add your API key, base URL, and username in Settings."
+                            )
+                    
+                    asyncio.create_task(show_config_reminder())
+                else:
+                    # Normal startup notification
+                    self.logger.info("Showing startup notification...")
+                    self.system_tray.show_notification(
+                        "WindVoice Started",
+                        f"Voice dictation is now running in the background. Press {self.config.app.hotkey} to start recording from any application."
+                    )
+                    
+                    # Show a secondary notification after a brief delay to confirm readiness
+                    async def show_ready_notification():
+                        await asyncio.sleep(2.0)  # Wait 2 seconds
+                        if self.running and self.system_tray:
+                            self.system_tray.show_notification(
+                                "WindVoice Ready",
+                                "Voice dictation is ready and listening for hotkey activation."
+                            )
+                    
+                    # Schedule the ready notification
+                    asyncio.create_task(show_ready_notification())
             
             print(f"WindVoice is now running in the background. Press {self.config.app.hotkey} to start recording from any application.")
             self.logger.info("WindVoice startup completed - entering main loop")
@@ -370,6 +384,16 @@ class WindVoiceApp:
         )
         
         try:
+            # Check if template configuration is detected
+            if self._template_config_detected:
+                self.logger.warning("Hotkey pressed but template configuration detected")
+                if self.system_tray:
+                    self.system_tray.show_notification(
+                        "Configuration Required",
+                        "Please complete setup first. Right-click tray icon → Settings → Enter your LiteLLM credentials."
+                    )
+                return
+                
             if self.recording:
                 self.logger.info("STOP: Hotkey pressed: STOPPING recording")
                 await self._stop_recording()
@@ -839,6 +863,32 @@ class WindVoiceApp:
         title = "Transcription Failed"
         message = "Unable to transcribe your recording. The audio may be unclear or the transcription service may be unavailable. Please try again."
         self._show_smart_notification(title, message, is_error=True)
+    
+    def _on_config_saved(self, config):
+        """Called when configuration is saved from settings window"""
+        self.logger.info("Configuration saved, checking if template config is resolved")
+        
+        # Check if the saved config has valid credentials now
+        if (config.litellm.api_key != "sk-your-litellm-api-key-here" and 
+            "placeholder" not in config.litellm.api_key.lower() and
+            "your-" not in config.litellm.api_key and
+            config.litellm.api_key.strip() != "" and
+            config.litellm.api_base.strip() != "" and
+            config.litellm.key_alias.strip() != ""):
+            
+            # Valid configuration detected - clear template flag
+            self.logger.info("Valid configuration detected - clearing template flag")
+            self._template_config_detected = False
+            self.config = config  # Update current config
+            
+            # Show success notification
+            if self.system_tray:
+                self.system_tray.show_notification(
+                    "WindVoice Configured",
+                    f"Setup complete! Voice dictation is now ready. Press {config.app.hotkey} to start recording."
+                )
+        else:
+            self.logger.warning("Configuration still has template/placeholder values")
     
     async def _show_settings(self):
         """Show the settings window"""
