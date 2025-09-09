@@ -513,15 +513,18 @@ def run_setup_if_needed(config_manager: ConfigManager, on_complete: Optional[Cal
     """Run setup wizard if needed. Returns True if setup was run."""
     if is_setup_needed(config_manager):
         try:
+            # Ensure config directory exists first
+            config_manager.ensure_config_dir()
+            
             # Try to run the GUI setup wizard
             wizard = SetupWizard(config_manager, on_complete)
             wizard.show()
             return True
         except Exception as e:
-            print(f"Warning: Could not launch setup wizard GUI: {e}")
-            print("This might be due to running in a headless environment or missing GUI libraries.")
+            print(f"Setup wizard could not be displayed: {e}")
+            print("Creating template configuration for manual setup...")
             
-            # Try to provide helpful guidance for manual setup
+            # Always try to provide helpful guidance and create template
             _provide_manual_setup_guidance(config_manager)
             return False
     return False
@@ -531,55 +534,45 @@ def _provide_manual_setup_guidance(config_manager: ConfigManager):
     """Provide guidance for manual setup when GUI is not available"""
     config_file = config_manager.config_file
     
-    print("\n" + "="*60)
-    print("WINDVOICE-WINDOWS MANUAL SETUP REQUIRED")
-    print("="*60)
-    print("The setup wizard could not be displayed. Please create the configuration manually:")
-    print(f"\n1. Create/edit the config file at: {config_file}")
-    print("\n2. Add the following content (replace with your actual credentials):")
-    print("""
-[litellm]
-api_key = "sk-your-litellm-api-key"
-api_base = "https://your-litellm-proxy-url"
-key_alias = "your-username-or-id"
-model = "whisper-1"
-
-[app]
-hotkey = "ctrl+shift+space"
-sample_rate = 44100
-
-[ui]
-theme = "dark"
-window_position = "center"
-show_tray_notifications = true
-""")
-    print("3. Save the file and restart WindVoice-Windows")
-    print("\n4. Contact your IT administrator for LiteLLM credentials if needed")
-    print("="*60)
-    
-    # Create example config if it doesn't exist
     try:
+        # Ensure config directory exists
+        config_manager.ensure_config_dir()
+        
+        # Create template config file if it doesn't exist
         if not config_file.exists():
-            config_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(config_file, 'w') as f:
-                f.write("""# WindVoice-Windows Configuration
-# Please fill in your LiteLLM credentials below
+            template_config = """# WindVoice-Windows Configuration File
+# Replace the placeholder values below with your actual credentials
 
 [litellm]
-api_key = ""  # Your LiteLLM API key (starts with sk-)
-api_base = ""  # Your LiteLLM proxy URL (https://your-proxy.com)
-key_alias = ""  # Your username or employee ID
+api_key = "sk-your-litellm-api-key-here"
+api_base = "https://your-litellm-proxy-url-here"
+key_alias = "your-username-or-id-here"
 model = "whisper-1"
 
 [app]
 hotkey = "ctrl+shift+space"
+audio_device = "default"
 sample_rate = 44100
 
 [ui]
 theme = "dark"
 window_position = "center"
 show_tray_notifications = true
-""")
-            print(f"Template configuration file created at: {config_file}")
+"""
+            config_file.write_text(template_config, encoding='utf-8')
+            print(f"Created configuration template at: {config_file}")
+        
     except Exception as e:
-        print(f"Could not create template config: {e}")
+        print(f"Error creating template config: {e}")
+    
+    print("\n" + "="*60)
+    print("WINDVOICE-WINDOWS SETUP GUIDANCE")
+    print("="*60)
+    print("The setup wizard could not be displayed, but we've created a template configuration.")
+    print(f"\nConfiguration file location: {config_file}")
+    print("\nTo complete setup:")
+    print("1. Edit the configuration file with your Thomson Reuters LiteLLM credentials")
+    print("2. Replace the placeholder values with your actual API information")
+    print("3. Save the file and restart WindVoice-Windows")
+    print("4. Contact your IT administrator for LiteLLM credentials if needed")
+    print("="*60)

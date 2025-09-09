@@ -66,11 +66,40 @@ class WindVoiceApp:
                 return  # Setup wizard will handle the rest
             
             # If setup was needed but couldn't be launched (e.g., headless environment)
-            # try to load config anyway - the setup wizard might have provided guidance
+            # check if a template config was created and try to load it
             if not self.config_manager.config_exists():
                 self.logger.error("No configuration found and setup wizard could not run")
-                self.logger.error("Please create configuration manually or run in GUI environment")
-                raise ConfigurationError("Configuration required but setup wizard unavailable")
+                self.logger.error("A template configuration may have been created in ~/.windvoice/config.toml")
+                self.logger.error("Please edit it with your credentials and restart the application")
+                print("\n" + "="*50)
+                print("WINDVOICE STARTUP FAILED")
+                print("="*50)
+                print("Configuration is required but the setup wizard could not run.")
+                print("Please check if a template configuration was created and edit it with your credentials.")
+                print(f"Config location: {self.config_manager.config_file}")
+                print("="*50)
+                return  # Exit gracefully instead of raising exception
+            
+            # Check if config exists now but is a template (needs editing)
+            if self.config_manager.config_exists():
+                try:
+                    # Try to load the config to see if it's valid
+                    temp_config = self.config_manager.load_config()
+                    if (temp_config.litellm.api_key == "sk-your-litellm-api-key-here" or 
+                        "placeholder" in temp_config.litellm.api_key.lower() or
+                        "your-" in temp_config.litellm.api_key):
+                        self.logger.error("Template configuration detected - needs editing")
+                        print("\n" + "="*50)
+                        print("CONFIGURATION NEEDS EDITING")
+                        print("="*50)
+                        print("A template configuration was created but needs your actual credentials.")
+                        print(f"Please edit: {self.config_manager.config_file}")
+                        print("Replace the placeholder values with your real Thomson Reuters LiteLLM credentials.")
+                        print("="*50)
+                        return  # Exit gracefully
+                except Exception as e:
+                    self.logger.error(f"Error loading configuration: {e}")
+                    return
                 
             # Continue with normal initialization
             
