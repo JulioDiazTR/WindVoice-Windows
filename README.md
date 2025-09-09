@@ -53,9 +53,11 @@ Choose your preferred installation method:
    ```
 
 2. **Run**
-   - Navigate to `dist/` folder
+   - Navigate to `dist/` folder (created after building)
    - Double-click `WindVoice-Windows.exe`
    - No installation required - runs immediately
+   
+   > **Note:** The executable will be located at `dist/WindVoice-Windows.exe` after building
 
 > **Why EXE is recommended:** Due to organizational permission policies, MSI installers may install successfully but cannot be uninstalled without admin privileges, potentially leaving the system in a blocked state.
 
