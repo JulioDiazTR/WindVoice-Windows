@@ -230,48 +230,25 @@ Context-aware transcription result display.
 ### Recording Workflow
 
 ```
-User Hotkey Press
+User Hotkey Press → Start Recording
     ↓
-HotkeyManager.callback()
+AudioRecorder captures audio with real-time monitoring
     ↓
-WindVoiceApp._start_recording()
+User Hotkey Press → Stop Recording
     ↓
-AudioRecorder.start_recording()
+AudioValidator validates audio quality
     ↓
-Real-time level monitoring
-    ↓
-User Hotkey Press (stop)
-    ↓
-AudioRecorder.stop_recording()
-    ↓
-AudioValidator.validate_audio()
-    ↓
-[If valid] TranscriptionService.transcribe()
-    ↓
-TextInjectionService.inject_text()
-    ↓
-[Success] Show confirmation
-[Failure] Show popup with text
+[Valid] TranscriptionService.transcribe() → Smart text injection/popup
+[Invalid] User notification → Skip transcription
 ```
 
 ### Configuration Flow
 
 ```
-Application Start
+Application Start → Load/Validate Config
     ↓
-ConfigManager.load_config()
-    ↓
-[If missing] Create defaults
-    ↓
-ConfigManager.validate_config()
-    ↓
-[If invalid] Show configuration prompt
-    ↓
-Initialize services with config
-    ↓
-Runtime updates via SettingsWindow
-    ↓
-ConfigManager.save_config()
+[Valid Config] → Initialize Services → Ready
+[Missing Config] → Setup Wizard → Save Config → Initialize Services
 ```
 
 ## Thread and Async Architecture
