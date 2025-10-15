@@ -81,28 +81,9 @@ python -m windvoice.core.app
 
 ### Configuration Management
 
-**Configuration Location:**
-- User config: `%USERPROFILE%\.windvoice\config.toml`
-- Auto-created on first run with default values
+**Configuration Location:** `%USERPROFILE%\.windvoice\config.toml`
 
-**Required Configuration:**
-```toml
-[litellm]
-api_key = "sk-your-key-here"
-api_base = "https://your-proxy.com"
-key_alias = "your-username"
-model = "whisper-1"
-
-[app]
-hotkey = "ctrl+shift+space"
-audio_device = "default"
-sample_rate = 44100
-
-[ui]
-theme = "dark"
-window_position = "center"
-show_tray_notifications = true
-```
+**See:** [config.example.toml](config.example.toml) for complete configuration template
 
 ### Common Development Tasks
 
@@ -513,35 +494,15 @@ pip freeze > requirements.txt
 - Use virtual environments to isolate dependencies
 - Consider using tools like `pip-audit` for security scanning
 
-### Release Procedures
+### Build and Release
 
-#### Version Management
-
-**Update version in:**
-- `src/windvoice/__init__.py` (when version file is created)
-- `docs/PRD.md`
-- `README.md`
-
-```python
-# Version management to be implemented
-# __version__ = "2.1.0"
-```
-
-#### Pre-release Checklist (Future)
-
-- [ ] Test suite implementation completed
-- [ ] Code formatted and linted
-- [ ] Documentation updated
-- [ ] Version management implemented
-- [ ] Performance benchmarks created
-- [ ] Windows compatibility verified
-
-#### Build Process
-
-See the [Installation Guide](INSTALLER_GUIDE.md) for complete build and distribution instructions.
+**Build Process:** See [INSTALLER_GUIDE.md](INSTALLER_GUIDE.md) for complete build instructions
 
 ```bash
-# Build complete distribution
+# Build portable EXE
+pyinstaller WindVoice.spec --clean --noconfirm
+
+# Build MSI installer
 python build.py
 ```
 

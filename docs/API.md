@@ -22,40 +22,17 @@ Thomson Reuters LiteLLM Proxy
 
 ### Configuration
 
-#### Required Environment
+**Configuration file:** `%USERPROFILE%\.windvoice\config.toml`
 
-The application requires these configuration values in `~/.windvoice/config.toml`:
+**Required fields:** `api_key`, `api_base`, `key_alias`, `model`
 
-```toml
-[litellm]
-# Virtual API key from Thomson Reuters
-api_key = "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+**See:** [config.example.toml](config.example.toml) for complete configuration template with descriptions
 
-# LiteLLM proxy base URL
-api_base = "https://your-litellm-proxy.com"
-
-# User identifier for usage tracking and billing
-key_alias = "your-username-or-identifier"
-
-# Model to use (always whisper-1 for speech transcription)
-model = "whisper-1"
-```
-
-#### Configuration Validation
-
+**Validation:**
 ```python
 from windvoice.core.config import ConfigManager
-
-# Load and validate configuration
 config_manager = ConfigManager()
-config = config_manager.load_config()
-
-# Check if all required fields are present
 is_valid = config_manager.validate_config()
-if not is_valid:
-    print("LiteLLM configuration is incomplete")
-    status = config_manager.get_config_status()
-    print(f"Config file: {status['config_file_path']}")
 ```
 
 ## API Endpoints
@@ -389,112 +366,19 @@ if metrics.quality_score < 40:
 ### Basic Transcription
 
 ```python
-import asyncio
-from windvoice.core.config import ConfigManager
 from windvoice.services.transcription import TranscriptionService
 
-async def transcribe_file(audio_path: str):
-    # Load configuration
-    config_manager = ConfigManager()
-    config = config_manager.load_config()
-    
-    # Create service
-    service = TranscriptionService(config.litellm)
-    
-    try:
-        # Test connection first
-        success, message = await service.test_connection()
-        if not success:
-            print(f"Connection failed: {message}")
-            return
-            
-        # Transcribe audio
-        text = await service.transcribe_audio(audio_path)
-        print(f"Transcribed text: {text}")
-        
-    except TranscriptionError as e:
-        print(f"Transcription failed: {e}")
-        
-    finally:
-        # Clean up
-        await service.close()
+# Initialize service
+service = TranscriptionService(config.litellm)
 
-# Run example
-asyncio.run(transcribe_file("recording.wav"))
+# Test connection
+success, message = await service.test_connection()
+
+# Transcribe audio
+text = await service.transcribe_audio("recording.wav")
 ```
 
-### Configuration Testing
-
-```python
-from windvoice.services.transcription import TranscriptionService
-
-async def test_api_configuration():
-    """Test API configuration and connectivity."""
-    service = TranscriptionService(config.litellm)
-    
-    # Validate configuration
-    if not service.validate_config():
-        errors = service.get_config_errors()
-        print("Configuration errors:")
-        for error in errors:
-            print(f"  - {error}")
-        return
-    
-    # Test connection
-    print("Testing API connection...")
-    success, message = await service.test_connection()
-    
-    if success:
-        print("✅ API configuration is valid")
-    else:
-        print(f"❌ API test failed: {message}")
-
-# Run configuration test
-asyncio.run(test_api_configuration())
-```
-
-### Integration with Audio Recording
-
-```python
-from windvoice.services.audio import AudioRecorder
-from windvoice.services.transcription import TranscriptionService
-
-async def record_and_transcribe():
-    """Complete workflow: record → validate → transcribe."""
-    
-    # Initialize services
-    recorder = AudioRecorder(sample_rate=44100, device="default")
-    transcription_service = TranscriptionService(config.litellm)
-    
-    try:
-        # Record audio
-        print("Recording... Press Enter to stop")
-        recorder.start_recording()
-        input()  # Wait for user input
-        audio_file = recorder.stop_recording()
-        
-        # Validate audio quality
-        metrics = recorder.get_quality_metrics(audio_file)
-        if not metrics.has_voice:
-            print("❌ No voice detected in recording")
-            return
-            
-        print(f"✅ Audio quality score: {metrics.quality_score}/100")
-        
-        # Transcribe
-        text = await transcription_service.transcribe_audio(audio_file)
-        print(f"📝 Transcription: {text}")
-        
-    except Exception as e:
-        print(f"Error: {e}")
-        
-    finally:
-        # Cleanup
-        await transcription_service.close()
-        recorder.cleanup_temp_files()
-
-asyncio.run(record_and_transcribe())
-```
+**Complete Examples:** See [DEVELOPMENT.md](DEVELOPMENT.md) for detailed testing examples and workflow integration
 
 ## Performance Considerations
 

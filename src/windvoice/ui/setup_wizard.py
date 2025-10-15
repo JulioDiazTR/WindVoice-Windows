@@ -45,6 +45,17 @@ class SetupWizard:
         self._create_window()
         self.is_visible = True
         
+        # Make sure the window is visible
+        self.window.deiconify()
+        self.window.lift()
+        self.window.focus_force()
+        
+        print("Setup wizard window created and showing...")
+        print("Please complete the setup in the window that appeared.")
+        
+        # Keep the window updated without blocking
+        self._run_window_loop()
+        
     def hide(self):
         """Hide the setup wizard"""
         if self.window:
@@ -53,103 +64,202 @@ class SetupWizard:
     
     def _create_window(self):
         """Create the main setup window"""
-        # Initialize variables
-        self.api_key_var = ctk.StringVar()
-        self.api_base_var = ctk.StringVar()
-        self.key_alias_var = ctk.StringVar()
-        self.theme_var = ctk.StringVar(value="dark")
-        self.notifications_var = ctk.BooleanVar(value=True)
+        try:
+            print("Creating setup window...")
+            
+            # Initialize CustomTkinter if not already done
+            ctk.set_appearance_mode("dark")
+            ctk.set_default_color_theme("blue")
+            
+            print("CustomTkinter configured, creating window...")
+            
+            # Create main window instead of toplevel for better reliability
+            self.window = ctk.CTk()
+            print("CTk window created")
+            
+            # Initialize variables after window creation
+            self.api_key_var = ctk.StringVar()
+            self.api_base_var = ctk.StringVar()
+            self.key_alias_var = ctk.StringVar()
+            self.theme_var = ctk.StringVar(value="dark")
+            self.notifications_var = ctk.BooleanVar(value=True)
+            print("Variables initialized")
+            
+            # Configure window
+            self.window.title("WindVoice-Windows Setup - First Time Configuration")
+            self.window.geometry("600x700")
+            self.window.resizable(False, False)
+            
+            # Make window stay on top and focused
+            self.window.attributes("-topmost", True)
+            print("Window attributes set")
         
-        self.window = ctk.CTkToplevel()
+            # Center the window - do this after geometry is set
+            self.window.update_idletasks()
+            x = (self.window.winfo_screenwidth() // 2) - (600 // 2)
+            y = (self.window.winfo_screenheight() // 2) - (700 // 2)
+            self.window.geometry(f"600x700+{x}+{y}")
+            print(f"Window centered at {x},{y}")
+            
+            # Prevent closing without completing setup
+            self.window.protocol("WM_DELETE_WINDOW", self._on_close_attempt)
+            
+            print("Setup window creation completed successfully")
+            
+        except Exception as e:
+            print(f"Error creating setup window: {e}")
+            import traceback
+            traceback.print_exc()
+            # Try a simpler approach - create basic window
+            self._create_simple_window()
+        
+        # Create main container after window is fully initialized
+        try:
+            print("Creating main frame...")
+            self.main_frame = ctk.CTkFrame(self.window)
+            self.main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+            print("Main frame created and packed")
+            
+            # Create the welcome step content
+            print("Creating welcome step...")
+            self._create_welcome_step()
+            print("Welcome step created")
+            
+        except Exception as e:
+            print(f"Error creating main frame: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            # Show simple message if everything fails
+            try:
+                label = ctk.CTkLabel(self.window, text="Setup wizard failed to load properly.\nPlease close this window and check the console for manual setup instructions.", wraplength=500)
+                label.pack(expand=True, pady=50)
+            except:
+                # Ultimate fallback
+                import tkinter as tk
+                label = tk.Label(self.window, text="Setup wizard failed to load properly.\nPlease close this window and check the console for manual setup instructions.", bg='white', wraplength=500)
+                label.pack(expand=True, pady=50)
+    
+    def _create_simple_window(self):
+        """Create a simpler window as fallback"""
+        import tkinter as tk
+        
+        # Fall back to basic Tkinter if CustomTkinter fails
+        self.window = tk.Tk()
         self.window.title("WindVoice-Windows Setup")
         self.window.geometry("600x700")
         self.window.resizable(False, False)
         
-        # Make window modal
-        self.window.transient()
-        self.window.grab_set()
-        
-        # Center the window
+        # Center window
         self.window.update_idletasks()
         x = (self.window.winfo_screenwidth() // 2) - (600 // 2)
         y = (self.window.winfo_screenheight() // 2) - (700 // 2)
         self.window.geometry(f"+{x}+{y}")
         
-        # Prevent closing without completing setup
+        # Make it stay on top
+        self.window.attributes("-topmost", True)
+        self.window.focus_force()
+        
+        # Prevent closing
         self.window.protocol("WM_DELETE_WINDOW", self._on_close_attempt)
         
-        # Set theme
-        ctk.set_appearance_mode("dark")
-        ctk.set_default_color_theme("blue")
-        
-        # Create main container
-        self.main_frame = ctk.CTkFrame(self.window)
-        self.main_frame.pack(fill="both", expand=True, padx=20, pady=20)
-        
-        self._create_welcome_step()
+        print("Setup wizard created with basic Tkinter fallback")
+    
+    def _run_window_loop(self):
+        """Show the window and let the main app handle the event loop"""
+        # Don't run mainloop here - let the main app handle updates
+        # Just make sure the window is visible and responsive
+        try:
+            print("Setup wizard window is ready - main app will handle updates")
+            # The window should already be visible from show()
+            # The main app's event loop will keep it responsive
+        except Exception as e:
+            print(f"Window setup error: {e}")
         
     def _create_welcome_step(self):
         """Create the welcome step"""
-        self._clear_content()
-        self.current_step = 0
-        
-        # Progress indicator
-        self._create_progress_indicator()
-        
-        # Welcome content
-        welcome_label = ctk.CTkLabel(
-            self.main_frame,
-            text="Welcome to WindVoice-Windows! 🎙️",
-            font=ctk.CTkFont(size=28, weight="bold")
-        )
-        welcome_label.pack(pady=(40, 20))
-        
-        description = ctk.CTkLabel(
-            self.main_frame,
-            text="Fast and accurate voice-to-text transcription for Windows\\n\\n"
-                 "This setup wizard will help you configure:\\n"
-                 "• Thomson Reuters LiteLLM API credentials\\n"
-                 "• Basic application preferences\\n"
-                 "• Audio device settings\\n\\n"
-                 "Let's get started!",
-            font=ctk.CTkFont(size=14),
-            justify="center"
-        )
-        description.pack(pady=20)
-        
-        # Feature highlights
-        features_frame = ctk.CTkFrame(self.main_frame)
-        features_frame.pack(fill="x", pady=30, padx=40)
-        
-        features_title = ctk.CTkLabel(
-            features_frame,
-            text="✨ Key Features",
-            font=ctk.CTkFont(size=16, weight="bold")
-        )
-        features_title.pack(pady=(15, 10))
-        
-        features_text = ctk.CTkLabel(
-            features_frame,
-            text="🔥 Global hotkey (Ctrl+Shift+Space) for instant recording\\n"
-                 "⚡ Optimized for 2-3 second transcription performance\\n"
-                 "🎯 Smart text injection into any Windows application\\n"
-                 "🔒 Secure local configuration storage\\n"
-                 "🎨 Modern, clean interface",
-            font=ctk.CTkFont(size=12),
-            justify="left"
-        )
-        features_text.pack(pady=(0, 15))
-        
-        # Next button
-        next_button = ctk.CTkButton(
-            self.main_frame,
-            text="Get Started →",
-            command=self._create_api_step,
-            font=ctk.CTkFont(size=14, weight="bold"),
-            height=40,
-            width=200
-        )
-        next_button.pack(pady=30)
+        try:
+            print("Clearing previous content...")
+            self._clear_content()
+            self.current_step = 0
+            
+            print("Creating progress indicator...")
+            # Progress indicator
+            self._create_progress_indicator()
+            
+            print("Creating welcome label...")
+            # Welcome content
+            welcome_label = ctk.CTkLabel(
+                self.main_frame,
+                text="Welcome to WindVoice-Windows! 🎙️",
+                font=ctk.CTkFont(size=28, weight="bold")
+            )
+            welcome_label.pack(pady=(40, 20))
+            print("Welcome label created and packed")
+            
+            print("Creating description...")
+            description = ctk.CTkLabel(
+                self.main_frame,
+                text="Fast and accurate voice-to-text transcription for Windows\\n\\n"
+                     "This setup wizard will help you configure:\\n"
+                     "• Thomson Reuters LiteLLM API credentials\\n"
+                     "• Basic application preferences\\n"
+                     "• Audio device settings\\n\\n"
+                     "Let's get started!",
+                font=ctk.CTkFont(size=14),
+                justify="center"
+            )
+            description.pack(pady=20)
+            
+            print("Creating feature highlights...")
+            # Feature highlights
+            features_frame = ctk.CTkFrame(self.main_frame)
+            features_frame.pack(fill="x", pady=30, padx=40)
+            
+            features_title = ctk.CTkLabel(
+                features_frame,
+                text="✨ Key Features",
+                font=ctk.CTkFont(size=16, weight="bold")
+            )
+            features_title.pack(pady=(15, 10))
+            
+            features_text = ctk.CTkLabel(
+                features_frame,
+                text="🔥 Global hotkey (Ctrl+Shift+Space) for instant recording\\n"
+                     "⚡ Optimized for 2-3 second transcription performance\\n"
+                     "🎯 Smart text injection into any Windows application\\n"
+                     "🔒 Secure local configuration storage\\n"
+                     "🎨 Modern, clean interface",
+                font=ctk.CTkFont(size=12),
+                justify="left"
+            )
+            features_text.pack(pady=(0, 15))
+            
+            print("Creating next button...")
+            # Next button
+            next_button = ctk.CTkButton(
+                self.main_frame,
+                text="Get Started →",
+                command=self._create_api_step,
+                font=ctk.CTkFont(size=14, weight="bold"),
+                height=40,
+                width=200
+            )
+            next_button.pack(pady=30)
+            print("Welcome step creation completed successfully")
+            
+        except Exception as e:
+            print(f"Error in _create_welcome_step: {e}")
+            import traceback
+            traceback.print_exc()
+            # Create a simple fallback
+            try:
+                simple_label = ctk.CTkLabel(self.main_frame, text="WindVoice-Windows Setup", font=ctk.CTkFont(size=20))
+                simple_label.pack(pady=50)
+                simple_button = ctk.CTkButton(self.main_frame, text="Continue", command=self._create_api_step)
+                simple_button.pack(pady=20)
+            except Exception as e2:
+                print(f"Even simple fallback failed: {e2}")
         
     def _create_api_step(self):
         """Create the API configuration step"""
@@ -377,24 +487,33 @@ class SetupWizard:
         key_alias = self.key_alias_var.get().strip()
         
         if not all([api_key, api_base, key_alias]):
+            self.window.lift()
+            self.window.focus_force()
             messagebox.showwarning(
                 "Missing Information",
-                "Please fill in all required fields to continue."
+                "Please fill in all required fields to continue.",
+                parent=self.window
             )
             return
             
         # Basic validation
         if not api_key.startswith("sk-"):
+            self.window.lift()
+            self.window.focus_force()
             messagebox.showwarning(
                 "Invalid API Key",
-                "API key should start with 'sk-'. Please check your credentials."
+                "API key should start with 'sk-'. Please check your credentials.",
+                parent=self.window
             )
             return
-            
+
         if not api_base.startswith("http"):
+            self.window.lift()
+            self.window.focus_force()
             messagebox.showwarning(
-                "Invalid API Base URL", 
-                "API base URL should start with 'http://' or 'https://'"
+                "Invalid API Base URL",
+                "API base URL should start with 'http://' or 'https://'",
+                parent=self.window
             )
             return
             
@@ -423,30 +542,63 @@ class SetupWizard:
                     show_tray_notifications=self.notifications_var.get()
                 )
             )
-            
+
             # Save configuration
             self.config_manager.save_config(config)
-            
+
             # Mark setup as completed
             self._mark_setup_completed()
-            
+
+            # Ensure messagebox appears on top of setup window
+            self.window.lift()
+            self.window.focus_force()
             messagebox.showinfo(
                 "Setup Complete! 🎉",
                 "WindVoice-Windows has been configured successfully!\\n\\n"
                 "• Press Ctrl+Shift+Space to start voice recording\\n"
                 "• Right-click the system tray icon for settings\\n\\n"
-                "Welcome to fast voice-to-text transcription!"
+                "Welcome to fast voice-to-text transcription!",
+                parent=self.window
             )
-            
-            # Close wizard and notify completion
-            self.window.destroy()
+
+            # Mark as not visible and notify completion BEFORE closing window
             self.is_visible = False
-            
-            if self.on_complete:
-                self.on_complete()
-                
+
+            # Store completion callback to call after window is properly closed
+            completion_callback = self.on_complete
+
+            # Close the window first
+            if self.window:
+                # Schedule window destruction after a brief delay to ensure messagebox is fully closed
+                self.window.after(100, self._complete_setup_and_close, completion_callback)
+            else:
+                # If no window, call completion directly
+                if completion_callback:
+                    completion_callback()
+
         except Exception as e:
-            messagebox.showerror("Setup Error", f"Failed to save configuration: {e}")
+            if self.window:
+                self.window.lift()
+                self.window.focus_force()
+            messagebox.showerror("Setup Error", f"Failed to save configuration: {e}", parent=self.window if self.window else None)
+
+    def _complete_setup_and_close(self, completion_callback):
+        """Complete the setup process and close the window"""
+        try:
+            # Destroy the window
+            if self.window:
+                self.window.destroy()
+                self.window = None
+
+            # Call the completion callback after window is closed
+            if completion_callback:
+                completion_callback()
+
+        except Exception as e:
+            print(f"Error during setup completion: {e}")
+            # Still try to call the completion callback
+            if completion_callback:
+                completion_callback()
             
     def _mark_setup_completed(self):
         """Mark that initial setup has been completed"""
@@ -455,16 +607,23 @@ class SetupWizard:
         
     def _on_close_attempt(self):
         """Handle attempt to close wizard before completion"""
+        if self.window:
+            self.window.lift()
+            self.window.focus_force()
         result = messagebox.askyesno(
             "Exit Setup?",
             "WindVoice-Windows requires initial setup to function.\\n\\n"
             "Are you sure you want to exit without completing setup?\\n"
-            "The application will not work until configured."
+            "The application will not work until configured.",
+            parent=self.window if self.window else None
         )
         
         if result:
-            # Exit the entire application if setup is cancelled
-            self.window.quit()
+            # Exit setup wizard if cancelled
+            self.is_visible = False
+            if self.window:
+                self.window.destroy()
+                self.window = None
 
 
 def is_setup_needed(config_manager: ConfigManager) -> bool:
@@ -510,76 +669,341 @@ def _mark_setup_completed_automatically(config_manager: ConfigManager):
 
 
 def run_setup_if_needed(config_manager: ConfigManager, on_complete: Optional[Callable] = None) -> bool:
-    """Run setup wizard if needed. Returns True if setup was run."""
-    if is_setup_needed(config_manager):
+    """Run setup wizard if needed. Returns True if setup was run, False if it failed."""
+    if not is_setup_needed(config_manager):
+        return False
+        
+    print("First run detected - initializing setup wizard...")
+    
+    # Ensure config directory exists first
+    config_manager.ensure_config_dir()
+    
+    # Try multiple approaches to ensure the setup wizard shows
+    attempts = [
+        ("CustomTkinter setup wizard", _try_customtkinter_setup),
+        ("Basic Tkinter setup wizard", _try_basic_tkinter_setup),
+        ("Console setup wizard", _try_console_setup)
+    ]
+    
+    for attempt_name, attempt_func in attempts:
         try:
-            # Try to run the GUI setup wizard
-            wizard = SetupWizard(config_manager, on_complete)
-            wizard.show()
-            return True
+            print(f"Attempting {attempt_name}...")
+            result = attempt_func(config_manager, on_complete)
+            if result:
+                print(f"✅ {attempt_name} succeeded")
+                return True
+            else:
+                print(f"❌ {attempt_name} failed")
         except Exception as e:
-            print(f"Warning: Could not launch setup wizard GUI: {e}")
-            print("This might be due to running in a headless environment or missing GUI libraries.")
-            
-            # Try to provide helpful guidance for manual setup
-            _provide_manual_setup_guidance(config_manager)
-            return False
+            print(f"❌ {attempt_name} failed with error: {e}")
+            continue
+    
+    print("❌ All setup wizard attempts failed - application will create template config")
     return False
+
+
+def _try_customtkinter_setup(config_manager: ConfigManager, on_complete: Optional[Callable] = None) -> bool:
+    """Try to create setup wizard with CustomTkinter using a simpler blocking approach"""
+    try:
+        # Create a simple blocking setup wizard
+        return _create_simple_blocking_setup(config_manager, on_complete)
+    except Exception as e:
+        print(f"Simple setup failed: {e}")
+        return False
+
+def _create_simple_blocking_setup(config_manager: ConfigManager, on_complete: Optional[Callable] = None) -> bool:
+    """Create a simple setup wizard that blocks until completed"""
+    import customtkinter as ctk
+    import tkinter as tk
+    from tkinter import messagebox
+    
+    # Set CustomTkinter theme
+    ctk.set_appearance_mode("dark")
+    ctk.set_default_color_theme("blue")
+    
+    # Create the main window
+    root = ctk.CTk()
+    root.title("WindVoice-Windows Setup")
+    root.geometry("600x500")
+    root.resizable(False, False)
+    
+    # Center window
+    root.update_idletasks()
+    x = (root.winfo_screenwidth() // 2) - (300)
+    y = (root.winfo_screenheight() // 2) - (250)
+    root.geometry(f"600x500+{x}+{y}")
+    
+    # Make window stay on top
+    root.attributes("-topmost", True)
+    
+    # Store widget references instead of using StringVar
+    entry_widgets = {}
+    
+    # Result variable
+    setup_completed = {"completed": False}
+    
+    def on_finish():
+        """Handle finish button click"""
+        # Get values directly from entry widgets
+        api_key = entry_widgets["api_key"].get().strip()
+        api_base = entry_widgets["api_base"].get().strip()
+        key_alias = entry_widgets["key_alias"].get().strip()
+        
+        # Debug: Print the values to see what we got
+        print(f"DEBUG - API Key: '{api_key}' (length: {len(api_key)})")
+        print(f"DEBUG - API Base: '{api_base}' (length: {len(api_base)})")
+        print(f"DEBUG - Key Alias: '{key_alias}' (length: {len(key_alias)})")
+        
+        # Validate inputs
+        if not all([api_key, api_base, key_alias]):
+            print("DEBUG - Validation failed: one or more fields are empty")
+            root.lift()
+            root.focus_force()
+            messagebox.showwarning(
+                "Missing Information",
+                f"Please fill in all required fields.\nAPI Key: {'✓' if api_key else '✗'}\nAPI Base: {'✓' if api_base else '✗'}\nUser ID: {'✓' if key_alias else '✗'}",
+                parent=root
+            )
+            return
+
+        if not api_key.startswith("sk-"):
+            root.lift()
+            root.focus_force()
+            messagebox.showwarning("Invalid API Key", "API key should start with 'sk-'.", parent=root)
+            return
+
+        if not api_base.startswith("http"):
+            root.lift()
+            root.focus_force()
+            messagebox.showwarning("Invalid API Base URL", "API base URL should start with 'http://' or 'https://'", parent=root)
+            return
+        
+        # Save configuration
+        try:
+            from ..core.config import WindVoiceConfig, LiteLLMConfig, AppConfig, UIConfig
+            
+            config = WindVoiceConfig(
+                litellm=LiteLLMConfig(
+                    api_key=api_key,
+                    api_base=api_base,
+                    key_alias=key_alias,
+                    model="whisper-1"
+                ),
+                app=AppConfig(),
+                ui=UIConfig()
+            )
+            
+            config_manager.save_config(config)
+            
+            # Mark setup as completed
+            setup_marker = config_manager.config_dir / ".setup_completed"
+            setup_marker.touch()
+            
+            setup_completed["completed"] = True
+            # Ensure messagebox appears on top
+            root.lift()
+            root.focus_force()
+            messagebox.showinfo(
+                "Setup Complete!",
+                "WindVoice-Windows has been configured successfully!\\n\\nThe application will now start in the system tray.",
+                parent=root
+            )
+            # Use destroy() instead of quit() to properly close the window
+            root.destroy()
+            
+        except Exception as e:
+            root.lift()
+            root.focus_force()
+            messagebox.showerror("Setup Error", f"Failed to save configuration: {e}", parent=root)
+
+    def on_close():
+        """Handle window close"""
+        root.lift()
+        root.focus_force()
+        result = messagebox.askyesno(
+            "Exit Setup?",
+            "WindVoice-Windows requires setup to function. Exit without completing setup?",
+            parent=root
+        )
+        if result:
+            root.destroy()
+    
+    root.protocol("WM_DELETE_WINDOW", on_close)
+    
+    # Create UI
+    main_frame = ctk.CTkFrame(root)
+    main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+    
+    # Title
+    title_label = ctk.CTkLabel(
+        main_frame,
+        text="WindVoice-Windows Setup",
+        font=ctk.CTkFont(size=24, weight="bold")
+    )
+    title_label.pack(pady=(20, 30))
+    
+    # Form
+    form_frame = ctk.CTkFrame(main_frame)
+    form_frame.pack(fill="x", padx=20, pady=10)
+    
+    # API Key
+    ctk.CTkLabel(form_frame, text="API Key:", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=20, pady=(20, 5))
+    entry_widgets["api_key"] = ctk.CTkEntry(
+        form_frame,
+        placeholder_text="sk-your-api-key-here",
+        show="*",
+        width=400
+    )
+    entry_widgets["api_key"].pack(pady=(0, 10), padx=20)
+    
+    # API Base
+    ctk.CTkLabel(form_frame, text="API Base URL:", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=20, pady=(10, 5))
+    entry_widgets["api_base"] = ctk.CTkEntry(
+        form_frame,
+        placeholder_text="https://your-litellm-proxy.company.com",
+        width=400
+    )
+    entry_widgets["api_base"].pack(pady=(0, 10), padx=20)
+    
+    # Key Alias
+    ctk.CTkLabel(form_frame, text="User ID:", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=20, pady=(10, 5))
+    entry_widgets["key_alias"] = ctk.CTkEntry(
+        form_frame,
+        placeholder_text="your-username",
+        width=400
+    )
+    entry_widgets["key_alias"].pack(pady=(0, 20), padx=20)
+    
+    # Buttons
+    button_frame = ctk.CTkFrame(main_frame)
+    button_frame.pack(fill="x", padx=20, pady=20)
+    
+    finish_button = ctk.CTkButton(
+        button_frame,
+        text="Complete Setup",
+        command=on_finish,
+        width=200,
+        height=40,
+        font=ctk.CTkFont(weight="bold")
+    )
+    finish_button.pack(pady=20)
+    
+    print("Starting setup wizard mainloop...")
+    root.mainloop()
+    root.destroy()
+    
+    if setup_completed["completed"] and on_complete:
+        on_complete()
+    
+    return setup_completed["completed"]
+
+
+def _try_basic_tkinter_setup(config_manager: ConfigManager, on_complete: Optional[Callable] = None) -> bool:
+    """Try to create setup wizard with basic Tkinter"""
+    # For now, skip this step - we'll implement it later if needed
+    return False
+
+
+def _try_console_setup(config_manager: ConfigManager, on_complete: Optional[Callable] = None) -> bool:
+    """Try console-based setup as last resort"""
+    print("\n" + "="*60)
+    print("WINDVOICE-WINDOWS CONSOLE SETUP")
+    print("="*60)
+    print("GUI setup failed. Let's configure WindVoice through the console.")
+    print("Please provide your Thomson Reuters LiteLLM credentials:")
+    
+    try:
+        api_key = input("API Key (starts with 'sk-'): ").strip()
+        if not api_key.startswith("sk-"):
+            print("Invalid API key format")
+            return False
+            
+        api_base = input("API Base URL (https://...): ").strip()
+        if not api_base.startswith("http"):
+            print("Invalid API base URL format")
+            return False
+            
+        key_alias = input("User ID/Key Alias: ").strip()
+        if not key_alias:
+            print("User ID cannot be empty")
+            return False
+        
+        # Create and save configuration
+        from ..core.config import WindVoiceConfig, LiteLLMConfig, AppConfig, UIConfig
+        
+        config = WindVoiceConfig(
+            litellm=LiteLLMConfig(
+                api_key=api_key,
+                api_base=api_base,
+                key_alias=key_alias,
+                model="whisper-1"
+            ),
+            app=AppConfig(),
+            ui=UIConfig()
+        )
+        
+        config_manager.save_config(config)
+        _mark_setup_completed_automatically(config_manager)
+        
+        print("✅ Configuration saved successfully!")
+        print("WindVoice-Windows is now ready to use.")
+        
+        if on_complete:
+            on_complete()
+            
+        return True
+        
+    except KeyboardInterrupt:
+        print("\nSetup cancelled by user")
+        return False
+    except Exception as e:
+        print(f"Console setup failed: {e}")
+        return False
 
 
 def _provide_manual_setup_guidance(config_manager: ConfigManager):
     """Provide guidance for manual setup when GUI is not available"""
     config_file = config_manager.config_file
     
-    print("\n" + "="*60)
-    print("WINDVOICE-WINDOWS MANUAL SETUP REQUIRED")
-    print("="*60)
-    print("The setup wizard could not be displayed. Please create the configuration manually:")
-    print(f"\n1. Create/edit the config file at: {config_file}")
-    print("\n2. Add the following content (replace with your actual credentials):")
-    print("""
-[litellm]
-api_key = "sk-your-litellm-api-key"
-api_base = "https://your-litellm-proxy-url"
-key_alias = "your-username-or-id"
-model = "whisper-1"
-
-[app]
-hotkey = "ctrl+shift+space"
-sample_rate = 44100
-
-[ui]
-theme = "dark"
-window_position = "center"
-show_tray_notifications = true
-""")
-    print("3. Save the file and restart WindVoice-Windows")
-    print("\n4. Contact your IT administrator for LiteLLM credentials if needed")
-    print("="*60)
-    
-    # Create example config if it doesn't exist
     try:
+        # Ensure config directory exists
+        config_manager.ensure_config_dir()
+        
+        # Create template config file if it doesn't exist
         if not config_file.exists():
-            config_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(config_file, 'w') as f:
-                f.write("""# WindVoice-Windows Configuration
-# Please fill in your LiteLLM credentials below
+            template_config = """# WindVoice-Windows Configuration File
+# Replace the placeholder values below with your actual credentials
 
 [litellm]
-api_key = ""  # Your LiteLLM API key (starts with sk-)
-api_base = ""  # Your LiteLLM proxy URL (https://your-proxy.com)
-key_alias = ""  # Your username or employee ID
+api_key = "sk-your-litellm-api-key-here"
+api_base = "https://your-litellm-proxy-url-here"
+key_alias = "your-username-or-id-here"
 model = "whisper-1"
 
 [app]
 hotkey = "ctrl+shift+space"
+audio_device = "default"
 sample_rate = 44100
 
 [ui]
 theme = "dark"
 window_position = "center"
 show_tray_notifications = true
-""")
-            print(f"Template configuration file created at: {config_file}")
+"""
+            config_file.write_text(template_config, encoding='utf-8')
+            print(f"Created configuration template at: {config_file}")
+        
     except Exception as e:
-        print(f"Could not create template config: {e}")
+        print(f"Error creating template config: {e}")
+    
+    print("\n" + "="*60)
+    print("WINDVOICE-WINDOWS SETUP GUIDANCE")
+    print("="*60)
+    print("The setup wizard could not be displayed, but we've created a template configuration.")
+    print(f"\nConfiguration file location: {config_file}")
+    print("\nTo complete setup:")
+    print("1. Edit the configuration file with your Thomson Reuters LiteLLM credentials")
+    print("2. Replace the placeholder values with your actual API information")
+    print("3. Save the file and restart WindVoice-Windows")
+    print("4. Contact your IT administrator for LiteLLM credentials if needed")
+    print("="*60)

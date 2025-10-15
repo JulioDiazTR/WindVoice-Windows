@@ -6,100 +6,67 @@ WindVoice-Windows provides multiple installation methods with robust error handl
 
 ## Installation Methods
 
-### 1. Portable Executable (Recommended)
+### 1. Portable Executable (Recommended for Most Users)
 
-The standalone executable provides immediate deployment without installation requirements or admin privilege concerns.
+**Best for:** General users, corporate environments with permission restrictions, portable deployment
 
-#### Building the Portable Executable
+The standalone executable runs immediately without installation and avoids admin privilege requirements.
+
+#### Building the Executable
 
 ```bash
-# Clone and build
 git clone <repository-url>
 cd WindVoice-Windows
-
-# Build standalone executable
 pyinstaller WindVoice.spec --clean --noconfirm
 ```
 
-#### Running the Executable
+**Executable Location:** `dist/WindVoice-Windows.exe`
 
-1. **Navigate to** `dist/` folder
-2. **Double-click** `WindVoice-Windows.exe`
-3. **No installation required** - runs immediately
+#### Benefits
 
-#### Portable Executable Features
+- ✅ No installation or admin privileges required
+- ✅ Portable - run from any folder or USB drive
+- ✅ No uninstall issues - just delete the file
+- ✅ Corporate friendly - bypasses installation policies
+- ✅ Built-in configuration tools (`--check-config`, `--create-config`)
 
-- ✅ **No Installation Required**: Run directly from any folder
-- ✅ **No Admin Privileges**: Bypass organizational permission restrictions
-- ✅ **Portable Deployment**: Move to any Windows system
-- ✅ **No Uninstall Issues**: Simply delete when no longer needed
-- ✅ **Emergency Configuration**: Built-in configuration tools
-- ✅ **Corporate Friendly**: Avoid installation policy conflicts
+> **Why EXE?** MSI installers may install successfully but require admin privileges to uninstall, potentially leaving systems in a blocked state.
 
-> **Why Portable EXE is recommended:** Due to organizational permission policies, MSI installers may install successfully but cannot be uninstalled without admin privileges, potentially leaving systems in a blocked state. The portable executable avoids these issues entirely.
+### 2. MSI Installer (For System Integration)
 
-### 2. MSI Installer (Alternative)
+**Best for:** Users with admin access who want full system integration (Start Menu, auto-start, registry integration)
 
-The MSI installer provides a professional Windows installation experience but may require admin privileges for uninstallation.
+#### Prerequisites & Building
 
-#### Building the MSI Installer
-
-**Prerequisites:**
-- Python 3.10+
-- WiX Toolset v3.11+ (Windows Installer XML)
-
-**Build Process:**
 ```bash
-# Clone and build
-git clone <repository-url>
-cd WindVoice-Windows
-
-# Install WiX Toolset (required for MSI)
+# Install WiX Toolset (required for MSI compilation)
 python install_wix.py
 
-# Build complete distribution
+# Build MSI installer
 python build.py
 ```
 
-**WiX Toolset Installation:**
-The MSI installer requires WiX Toolset to compile Windows Installer packages:
-- **Automatic**: `python install_wix.py` (recommended)
-- **Manual**: Download from [https://wixtoolset.org/releases/](https://wixtoolset.org/releases/)
-- **Verify**: Run `candle -?` and `light -?` to confirm installation
+**MSI Location:** `installer/WindVoice-Windows-Installer.msi`
 
-#### Installation Process
+#### Installation
 
-1. **Double-click** `installer/WindVoice-Windows-Installer.msi`
-2. **Setup Wizard** will guide you through:
-   - Welcome screen with application description
-   - License agreement (MIT License)  
-   - Installation directory selection (default: Program Files)
-   - Feature selection:
-     - ✅ WindVoice-Windows Application (required)
-     - ✅ Start with Windows (optional, recommended)
-   - Installation progress with real-time feedback
-   - Completion confirmation
+1. Double-click `WindVoice-Windows-Installer.msi`
+2. Follow setup wizard (welcome, license, directory, features)
+3. Launch from Start Menu
 
-3. **Launch Application**
-   - Find "WindVoice-Windows" in Start Menu
-   - Or navigate to installation directory
+#### Features
 
-#### MSI Installer Features
+- ✅ Start Menu integration with shortcuts
+- ✅ Auto-start with Windows (optional)
+- ✅ Registry integration
+- ✅ Professional uninstall via Programs & Features
+- ❗ **Requires admin privileges for uninstallation**
 
-- ✅ **Professional UI**: Standard Windows installer dialogs
-- ✅ **Start Menu Integration**: Desktop shortcuts and Start Menu entries
-- ✅ **Auto-start Option**: Launch with Windows (optional)
-- ✅ **Proper Uninstall**: Full removal via Programs & Features
-- ✅ **Upgrade Support**: In-place upgrades for future versions
-- ✅ **Registry Integration**: Proper Windows application registration
+> **⚠️ Warning:** Only use MSI if you have full admin access. MSI may install successfully but require admin privileges to uninstall.
 
-### 2. MSI Installer Features (Advanced Users)
+### 3. Python Development Installation
 
-> **⚠️ Warning:** MSI installation may require admin privileges for uninstallation. Use only if you have full admin access or prefer system integration.
-
-### 3. Python Package (Development)
-
-For developers and advanced users.
+**Best for:** Developers and contributors
 
 ```bash
 git clone <repository-url>
@@ -110,52 +77,31 @@ pip install -r requirements.txt
 python main.py
 ```
 
+**See:** [DEVELOPMENT.md](DEVELOPMENT.md) for complete development setup
+
 ## Initial Configuration
 
 ### Automatic Setup Wizard
 
-On first launch, WindVoice automatically detects if configuration is needed and launches the setup wizard:
+On first launch, WindVoice detects missing configuration and launches the setup wizard:
 
-1. **Welcome Screen**: Introduction and feature overview
-2. **API Configuration**: Thomson Reuters LiteLLM credentials
-3. **Preferences**: Theme selection and notification settings
-4. **Completion**: Automatic configuration save and setup marker creation
+1. **Welcome Screen** → API Configuration → Preferences → Completion
 
 ### Manual Configuration
 
-If the setup wizard doesn't appear or you prefer manual setup:
-
-#### Emergency Configuration Tools
+Use emergency configuration tools or edit config file directly:
 
 ```bash
-# Check current configuration status
+# Check configuration status
 WindVoice-Windows.exe --check-config
 
-# Create emergency configuration template
+# Create configuration template
 WindVoice-Windows.exe --create-config
 ```
 
-#### Configuration File
+**Configuration file location:** `%USERPROFILE%\.windvoice\config.toml`
 
-Edit `%USERPROFILE%\.windvoice\config.toml`:
-
-```toml
-[litellm]
-api_key = "sk-your-litellm-api-key"
-api_base = "https://your-litellm-proxy.com"
-key_alias = "your-username"
-model = "whisper-1"
-
-[app]
-hotkey = "ctrl+shift+space"
-audio_device = "default"
-sample_rate = 44100
-
-[ui]
-theme = "dark"
-window_position = "center"
-show_tray_notifications = true
-```
+**See:** [config.example.toml](config.example.toml) for complete configuration reference with descriptions
 
 ## Troubleshooting Installation Issues
 

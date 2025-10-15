@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-    <Product Id="F1F1232A-8C25-4DD9-8795-D02A4205790F" 
+    <Product Id="E78D8D56-1FC1-4DC5-A217-0FDFD92C1782" 
              Name="WindVoice-Windows" 
              Language="1033" 
              Version="1.0.0.0" 
@@ -68,7 +68,7 @@
 
         <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
             <!-- Main executable -->
-            <Component Id="MainExecutable" Guid="BE1236D6-9745-4E2A-8B9B-9FA7C232861C">
+            <Component Id="MainExecutable" Guid="DB370FB5-956E-4243-8370-CECCC54EC0E5">
                 <File Id="WindVoiceExe" 
                       Name="WindVoice-Windows.exe"
                       Source="C:\Users\6113618\Github\WindVoice-Windows\dist\WindVoice-Windows.exe"
@@ -76,7 +76,7 @@
             </Component>
             
             <!-- Application registry entries -->
-            <Component Id="AppRegistry" Guid="1F709666-201F-4165-95BE-84FA210CF3A1">
+            <Component Id="AppRegistry" Guid="9545DC8F-6ADB-42A3-B8CA-3CC19B888BAA">
                 <RegistryKey Root="HKLM" Key="Software\WindVoice-Windows">
                     <RegistryValue Name="InstallLocation" Type="string" Value="[INSTALLFOLDER]" KeyPath="yes" />
                     <RegistryValue Name="Version" Type="string" Value="1.0.0.0" />
@@ -86,7 +86,7 @@
         </ComponentGroup>
         
         <!-- Auto-start registry entry (separate component) -->
-        <Component Id="AutoStartRegistry" Directory="INSTALLFOLDER" Guid="EAE39D28-7D59-4274-A6E6-F67B78BA50F8">
+        <Component Id="AutoStartRegistry" Directory="INSTALLFOLDER" Guid="06AA928C-6901-42AC-A459-5231AAD58F49">
             <RegistryValue Root="HKCU" 
                           Key="Software\Microsoft\Windows\CurrentVersion\Run"
                           Name="WindVoice-Windows"
@@ -97,7 +97,7 @@
         
         <ComponentGroup Id="StartMenuComponents" Directory="ApplicationProgramsFolder">
             <!-- Start Menu shortcut -->
-            <Component Id="StartMenuShortcut" Guid="9732D3CA-46BC-4533-A124-4599A11F8985">
+            <Component Id="StartMenuShortcut" Guid="3E727C76-E0F9-49BA-9918-52C6F85B0004">
                 <Shortcut Id="ApplicationStartMenuShortcut"
                          Name="WindVoice-Windows"
                          Description="Voice dictation for Windows"

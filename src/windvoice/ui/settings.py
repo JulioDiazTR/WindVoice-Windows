@@ -24,13 +24,14 @@ from ..utils.logging import get_logger, WindVoiceLogger
 
 
 class SettingsWindow:
-    def __init__(self, config_manager: ConfigManager, audio_recorder: Optional[AudioRecorder] = None):
+    def __init__(self, config_manager: ConfigManager, audio_recorder: Optional[AudioRecorder] = None, on_config_saved: Optional[Callable] = None):
         self.logger = get_logger("settings")
         self.logger.info("Settings window initializing...")
         
         self.config_manager = config_manager
         self.audio_recorder = audio_recorder
         self.config = config_manager.load_config()
+        self.on_config_saved = on_config_saved
         
         # Window setup
         self.window = None
@@ -1246,6 +1247,10 @@ class SettingsWindow:
             
             messagebox.showinfo("Success", "Settings saved successfully! New microphone settings are now active.")
             self._update_diagnostics_status()
+            
+            # Notify parent app that config was saved (to update template detection)
+            if self.on_config_saved:
+                self.on_config_saved(self.config)
             
         except Exception as e:
             messagebox.showerror("Save Error", f"Failed to save settings: {e}")

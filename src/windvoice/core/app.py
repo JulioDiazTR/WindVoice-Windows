@@ -50,6 +50,8 @@ class WindVoiceApp:
         self.recording = False
         self.event_loop: Optional[asyncio.AbstractEventLoop] = None
         self.running = False
+        self._template_config_detected = False
+        self._setup_just_completed = False
         
         # Real-time feedback
         self.level_monitor_task: Optional[asyncio.Task] = None
@@ -65,23 +67,49 @@ class WindVoiceApp:
                 self.logger.info("Setup wizard launched - waiting for completion")
                 return  # Setup wizard will handle the rest
             
-            # If setup was needed but couldn't be launched (e.g., headless environment)
-            # try to load config anyway - the setup wizard might have provided guidance
+            # Setup was not needed or failed - try to load existing config or create template
             if not self.config_manager.config_exists():
-                self.logger.error("No configuration found and setup wizard could not run")
-                self.logger.error("Please create configuration manually or run in GUI environment")
-                raise ConfigurationError("Configuration required but setup wizard unavailable")
+                self.logger.info("No configuration found - creating template configuration")
+                try:
+                    # Create a basic template configuration that the app can load
+                    self._create_emergency_template_config()
+                    self.logger.info("Template configuration created successfully")
+                except Exception as template_error:
+                    self.logger.error(f"Failed to create template configuration: {template_error}")
+                    print("\n" + "="*50)
+                    print("WINDVOICE STARTUP FAILED")
+                    print("="*50)
+                    print("Could not create configuration file.")
+                    print(f"Config location: {self.config_manager.config_file}")
+                    print("Please check directory permissions and try running as administrator.")
+                    print("="*50)
+                    return
+            
+            # Load configuration and check if it's template or valid
+            try:
+                self.config = self.config_manager.load_config()
+                
+                # Check if this is a template configuration
+                if (self.config.litellm.api_key == "sk-your-litellm-api-key-here" or 
+                    "placeholder" in self.config.litellm.api_key.lower() or
+                    "your-" in self.config.litellm.api_key):
+                    self.logger.info("Template configuration detected - will prompt user to configure")
+                    self._template_config_detected = True
+                else:
+                    self._template_config_detected = False
+                    
+            except Exception as e:
+                self.logger.error(f"Error loading configuration: {e}")
+                return
                 
             # Continue with normal initialization
-            
-            # Load configuration (setup is complete)
-            self.config = self.config_manager.load_config()
+            # Config already loaded above in the template check logic
             
             # Configure theme based on loaded config
             self._apply_theme()
             
-            # Double-check configuration validity
-            if not self.config_manager.validate_config():
+            # Check configuration validity - allow template configs to pass through
+            if not self._template_config_detected and not self.config_manager.validate_config():
                 status = self.config_manager.get_config_status()
                 print("\nWindVoice - Configuration Invalid")
                 print("=" * 50)
@@ -100,36 +128,89 @@ class WindVoiceApp:
     
     def _on_setup_complete(self):
         """Called when setup wizard completes successfully"""
-        self.logger.info("Setup completed - initializing application")
-        
+        self.logger.info("Setup completed - scheduling initialization continuation")
+
         # Schedule the continuation of initialization in the asyncio loop
-        if self.event_loop:
+        if self.event_loop and self.event_loop.is_running():
+            self.logger.info("Event loop is available - creating task for continuation")
             asyncio.create_task(self._continue_initialization_after_setup())
         else:
-            # If no event loop yet, we'll handle this in the start() method
-            self.logger.info("No event loop available yet - initialization will continue in start()")
+            # If no event loop yet, mark for handling in start() method
+            self.logger.info("No event loop available yet - marking setup complete for start() method")
+            # Set a flag that start() can check
+            self._setup_just_completed = True
     
     async def _continue_initialization_after_setup(self):
         """Continue initialization after setup wizard completion"""
         try:
+            self.logger.info("Loading newly created configuration after setup...")
+
             # Load the newly created configuration
             self.config = self.config_manager.load_config()
-            
+            self.logger.info("Configuration loaded successfully")
+
             # Apply theme
             self._apply_theme()
-            
+            self.logger.info("Theme applied")
+
             # Initialize services
             await self._initialize_services()
-            
+            self.logger.info("Services initialized after setup")
+
+            # Clear template config flag since we have valid config now
+            self._template_config_detected = False
+
             self.logger.info("Post-setup initialization completed successfully")
-            
-            # Start the application if we have all required components
+
+            # Now start the application services if not already running
             if not self.running:
-                await self.start()
-                
+                self.logger.info("Starting application services after setup completion...")
+                await self._start_application_services()
+
         except Exception as e:
             self.logger.error(f"Failed to continue initialization after setup: {e}")
             print(f"Error after setup: {e}")
+            raise
+
+    async def _start_application_services(self):
+        """Start the application services (system tray, hotkeys, etc.)"""
+        try:
+            self.logger.info("Starting WindVoice application services...")
+
+            # Start services
+            self.logger.info("Starting HotkeyManager...")
+            self.hotkey_manager.start(self.event_loop)
+            self.logger.info("HotkeyManager started successfully")
+
+            self.logger.info("Starting SystemTrayService...")
+            self.system_tray.start(self.event_loop)
+            self.logger.info("SystemTrayService started successfully")
+
+            # Show startup notification only for valid configurations
+            if self.config.ui.show_tray_notifications and not self._template_config_detected:
+                self.logger.info("Showing startup notification...")
+                self.system_tray.show_notification(
+                    "WindVoice Started",
+                    f"Voice dictation is now running. Press {self.config.app.hotkey} to start recording from any application."
+                )
+
+                # Show ready notification after brief delay
+                async def show_ready_notification():
+                    await asyncio.sleep(2.0)
+                    if self.running and self.system_tray:
+                        self.system_tray.show_notification(
+                            "WindVoice Ready",
+                            "Voice dictation is ready and listening for hotkey activation."
+                        )
+
+                asyncio.create_task(show_ready_notification())
+
+            self.logger.info("WindVoice application services started successfully")
+
+        except Exception as e:
+            self.logger.error(f"Error starting application services: {e}")
+            print(f"Error starting WindVoice services: {e}")
+            raise
     
     def _initialize_ui_root(self):
         """Initialize the root Tkinter window (hidden)"""
@@ -204,7 +285,7 @@ class WindVoiceApp:
         
         # Settings window
         self.logger.info("Initializing SettingsWindow...")
-        self.settings_window = SettingsWindow(self.config_manager, self.audio_recorder)
+        self.settings_window = SettingsWindow(self.config_manager, self.audio_recorder, self._on_config_saved)
         self.logger.info("SettingsWindow initialized successfully")
         
         # Status dialog for visual feedback
@@ -218,78 +299,99 @@ class WindVoiceApp:
         if self.running:
             self.logger.info("App already running, skipping start")
             return
-        
+
+        # Set event loop
+        self.event_loop = asyncio.get_event_loop()
+
+        # Check if setup just completed and we need to continue initialization
+        if self._setup_just_completed:
+            self.logger.info("Setup just completed - continuing initialization")
+            self._setup_just_completed = False
+            await self._continue_initialization_after_setup()
+            # After setup completion, config should be available
+            if not self.config:
+                self.logger.error("Setup completed but config still not available")
+                return
+
+            # If services were started in _continue_initialization_after_setup, start main loop
+            if self.running:
+                self.logger.info("Services started after setup - entering main loop")
+                await self._run_main_loop()
+                return
+
         # If config is not loaded (because setup was needed), wait for setup completion
         if not self.config:
             self.logger.info("Configuration not loaded - waiting for setup completion")
-            # Set event loop for setup completion callback
-            self.event_loop = asyncio.get_event_loop()
+
+            # Keep the application alive while waiting for setup completion
+            self.running = True
+            await self._wait_for_setup_completion()
             return
-            
+
         self.logger.info("Starting WindVoice application...")
-        self.event_loop = asyncio.get_event_loop()
         self.running = True
-        
+
         try:
             # Start services
-            self.logger.info("Starting HotkeyManager...")
-            self.hotkey_manager.start(self.event_loop)
-            self.logger.info("HotkeyManager started successfully")
-            
-            self.logger.info("Starting SystemTrayService...")
-            self.system_tray.start(self.event_loop)
-            self.logger.info("SystemTrayService started successfully")
-            
-            # Show startup notification
-            if self.config.ui.show_tray_notifications:
-                self.logger.info("Showing startup notification...")
+            await self._start_application_services()
+
+            # Show template config notifications if needed
+            if self._template_config_detected and self.config.ui.show_tray_notifications:
+                # Show configuration needed notification
+                self.logger.info("Showing template configuration notification...")
                 self.system_tray.show_notification(
-                    "WindVoice Started",
-                    f"Voice dictation is now running in the background. Press {self.config.app.hotkey} to start recording from any application."
+                    "WindVoice - Configuration Required",
+                    "Please configure your Thomson Reuters LiteLLM credentials. Right-click the tray icon and select 'Settings' to get started."
                 )
-                
-                # Show a secondary notification after a brief delay to confirm readiness
-                async def show_ready_notification():
-                    await asyncio.sleep(2.0)  # Wait 2 seconds
-                    if self.running and self.system_tray:
+
+                # Show follow-up notification with more details
+                async def show_config_reminder():
+                    await asyncio.sleep(3.0)  # Wait 3 seconds
+                    if self.running and self.system_tray and self._template_config_detected:
                         self.system_tray.show_notification(
-                            "WindVoice Ready",
-                            "Voice dictation is ready and listening for hotkey activation."
+                            "Setup Required",
+                            "Voice dictation will not work until you add your API key, base URL, and username in Settings."
                         )
-                
-                # Schedule the ready notification
-                asyncio.create_task(show_ready_notification())
-            
+
+                asyncio.create_task(show_config_reminder())
+
             print(f"WindVoice is now running in the background. Press {self.config.app.hotkey} to start recording from any application.")
             self.logger.info("WindVoice startup completed - entering main loop")
-            
-            # Keep the application running and process Tkinter events
-            loop_counter = 0
-            while self.running:
-                # Log every 100 iterations (10 seconds) to show we're alive
-                if loop_counter % 100 == 0:
-                    self.logger.debug(f"Main loop iteration {loop_counter}")
-                
-                # Process Tkinter events if root window exists
-                if self.root_window:
-                    try:
-                        self.root_window.update()
-                    except tk.TclError as tcl_error:
-                        # Window was destroyed
-                        self.logger.warning(f"Root window was destroyed - stopping app: {tcl_error}")
-                        break
-                    except Exception as tk_error:
-                        # Other Tkinter errors - log but don't stop the app
-                        self.logger.error(f"Tkinter update error (non-fatal): {tk_error}")
-                        continue
-                        
-                await asyncio.sleep(0.1)
-                loop_counter += 1
-                
+
+            # Run main event loop
+            await self._run_main_loop()
+
         except Exception as e:
             self.logger.error(f"Error starting WindVoice: {e}")
             print(f"Error starting WindVoice: {e}")
             await self.stop()
+
+    async def _run_main_loop(self):
+        """Run the main application event loop"""
+        self.logger.info("Entering main event loop...")
+
+        # Keep the application running and process Tkinter events
+        loop_counter = 0
+        while self.running:
+            # Log every 100 iterations (10 seconds) to show we're alive
+            if loop_counter % 100 == 0:
+                self.logger.debug(f"Main loop iteration {loop_counter}")
+
+            # Process Tkinter events if root window exists
+            if self.root_window:
+                try:
+                    self.root_window.update()
+                except tk.TclError as tcl_error:
+                    # Window was destroyed
+                    self.logger.warning(f"Root window was destroyed - stopping app: {tcl_error}")
+                    break
+                except Exception as tk_error:
+                    # Other Tkinter errors - log but don't stop the app
+                    self.logger.error(f"Tkinter update error (non-fatal): {tk_error}")
+                    continue
+
+            await asyncio.sleep(0.1)
+            loop_counter += 1
     
     async def stop(self):
         self.running = False
@@ -341,6 +443,16 @@ class WindVoiceApp:
         )
         
         try:
+            # Check if template configuration is detected
+            if self._template_config_detected:
+                self.logger.warning("Hotkey pressed but template configuration detected")
+                if self.system_tray:
+                    self.system_tray.show_notification(
+                        "Configuration Required",
+                        "Please complete setup first. Right-click tray icon → Settings → Enter your LiteLLM credentials."
+                    )
+                return
+                
             if self.recording:
                 self.logger.info("STOP: Hotkey pressed: STOPPING recording")
                 await self._stop_recording()
@@ -702,6 +814,117 @@ class WindVoiceApp:
                 
         self.logger.info("_handle_transcription_result completed")
     
+    def _create_emergency_template_config(self):
+        """Create an emergency template configuration when no config exists and setup wizard fails"""
+        self.config_manager.ensure_config_dir()
+        
+        template_content = """# WindVoice-Windows Configuration Template
+# SETUP REQUIRED: Replace placeholder values with your actual credentials
+# After editing, restart the application or go to Settings to complete setup
+
+[litellm]
+api_key = "sk-your-litellm-api-key-here"
+api_base = "https://your-litellm-proxy-url-here"
+key_alias = "your-username-or-id-here"
+model = "whisper-1"
+
+[app]
+hotkey = "ctrl+shift+space"
+audio_device = "default"
+sample_rate = 44100
+
+[ui]
+theme = "dark"
+window_position = "center"
+show_tray_notifications = true
+"""
+        
+        with open(self.config_manager.config_file, 'w', encoding='utf-8') as f:
+            f.write(template_content)
+            
+        # Show guidance message
+        print("\n" + "="*60)
+        print("WINDVOICE-WINDOWS: FIRST RUN DETECTED")
+        print("="*60)
+        print("A template configuration has been created for you.")
+        print(f"Location: {self.config_manager.config_file}")
+        print("")
+        print("TO COMPLETE SETUP:")
+        print("1. Right-click the system tray icon and select 'Settings'")
+        print("2. Enter your Thomson Reuters LiteLLM credentials")
+        print("3. Save the configuration to start using voice dictation")
+        print("")
+        print("The application will continue to load but voice recording")
+        print("will not work until you complete the configuration.")
+        print("="*60)
+    
+    async def _wait_for_setup_completion(self):
+        """Wait for setup wizard to complete configuration"""
+        self.logger.info("Waiting for setup wizard completion...")
+        
+        # Wait in a loop until configuration is available or setup is cancelled
+        setup_timeout = 300  # 5 minutes timeout
+        elapsed_time = 0
+        check_interval = 1.0  # Check every second
+        
+        while elapsed_time < setup_timeout:
+            # Check if configuration was created/completed
+            if self.config_manager.config_exists():
+                try:
+                    # Try to load the configuration
+                    potential_config = self.config_manager.load_config()
+                    
+                    # Check if it's a valid configuration (not just template)
+                    if (potential_config.litellm.api_key != "sk-your-litellm-api-key-here" and
+                        potential_config.litellm.api_key.strip() != "" and
+                        potential_config.litellm.api_base.strip() != "" and
+                        potential_config.litellm.key_alias.strip() != ""):
+                        
+                        self.logger.info("Valid configuration detected - continuing initialization")
+                        self.config = potential_config
+                        self._template_config_detected = False
+                        
+                        # Continue with normal initialization
+                        await self._continue_initialization_after_setup()
+                        return
+                        
+                except Exception as e:
+                    self.logger.warning(f"Error loading config during wait: {e}")
+            
+            # Update Tkinter window while waiting
+            if self.root_window:
+                try:
+                    self.root_window.update()
+                except tk.TclError:
+                    # Window was destroyed
+                    pass
+                except Exception as tk_error:
+                    self.logger.warning(f"Tkinter update error while waiting: {tk_error}")
+            
+            # Wait and increment elapsed time
+            await asyncio.sleep(check_interval)
+            elapsed_time += check_interval
+            
+            # Log progress every 30 seconds
+            if elapsed_time % 30 == 0:
+                self.logger.info(f"Still waiting for setup completion... ({elapsed_time}s elapsed)")
+        
+        # Timeout reached
+        self.logger.warning("Setup completion timeout reached - proceeding with template config")
+        
+        # Try to load template config and continue
+        if self.config_manager.config_exists():
+            try:
+                self.config = self.config_manager.load_config()
+                self._template_config_detected = True
+                self.logger.info("Loaded template configuration - user can complete setup later")
+                await self._continue_initialization_after_setup()
+            except Exception as e:
+                self.logger.error(f"Failed to load template config: {e}")
+                print("Setup wizard timeout - application will exit")
+        else:
+            print("Setup wizard timeout and no configuration available - application will exit")
+    
     def _show_injection_error_popup(self, text: str):
         """Helper method to show injection error popup"""
         self.status_dialog.hide()
@@ -810,6 +1033,32 @@ class WindVoiceApp:
         title = "Transcription Failed"
         message = "Unable to transcribe your recording. The audio may be unclear or the transcription service may be unavailable. Please try again."
         self._show_smart_notification(title, message, is_error=True)
+    
+    def _on_config_saved(self, config):
+        """Called when configuration is saved from settings window"""
+        self.logger.info("Configuration saved, checking if template config is resolved")
+        
+        # Check if the saved config has valid credentials now
+        if (config.litellm.api_key != "sk-your-litellm-api-key-here" and 
+            "placeholder" not in config.litellm.api_key.lower() and
+            "your-" not in config.litellm.api_key and
+            config.litellm.api_key.strip() != "" and
+            config.litellm.api_base.strip() != "" and
+            config.litellm.key_alias.strip() != ""):
+            
+            # Valid configuration detected - clear template flag
+            self.logger.info("Valid configuration detected - clearing template flag")
+            self._template_config_detected = False
+            self.config = config  # Update current config
+            
+            # Show success notification
+            if self.system_tray:
+                self.system_tray.show_notification(
+                    "WindVoice Configured",
+                    f"Setup complete! Voice dictation is now ready. Press {config.app.hotkey} to start recording."
+                )
+        else:
+            self.logger.warning("Configuration still has template/placeholder values")
     
     async def _show_settings(self):
         """Show the settings window"""
